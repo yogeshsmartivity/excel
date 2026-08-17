@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.0.0"
+CURRENT_VERSION = "1.0.6"
 
 def check_for_updates(workbook_path=None, force_download=False):
     """
