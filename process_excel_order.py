@@ -59,11 +59,11 @@ def check_for_updates(workbook_path=None):
                     price_path = os.path.join(wb_dir, "master_price_list.xlsx")
                     urllib.request.urlretrieve(price_url, price_path)
                     
-                    # Download updated master_discount_list.xlsx
-                    disc_url = GITHUB_RAW_BASE + "master_discount_list.xlsx"
-                    disc_path = os.path.join(wb_dir, "master_discount_list.xlsx")
+                    # Download updated github_api_push.py
                     try:
-                        urllib.request.urlretrieve(disc_url, disc_path)
+                        gpush_url = GITHUB_RAW_BASE + "github_api_push.py"
+                        gpush_path = os.path.join(wb_dir, "github_api_push.py")
+                        urllib.request.urlretrieve(gpush_url, gpush_path)
                     except Exception:
                         pass
                     
@@ -1400,6 +1400,15 @@ def push_team_masters(workbook_path):
     # Call github_api_push.py
     import subprocess
     push_script = os.path.join(wb_dir, "github_api_push.py")
+    if not os.path.exists(push_script):
+        try:
+            import urllib.request
+            gpush_url = GITHUB_RAW_BASE + "github_api_push.py"
+            urllib.request.urlretrieve(gpush_url, push_script)
+            print(f"Auto-downloaded missing {push_script} from GitHub!")
+        except Exception as dl_err:
+            print(f"Failed to download github_api_push.py: {dl_err}")
+            
     res = subprocess.run([sys.executable, push_script], capture_output=True, text=True)
     
     notice_path = os.path.join(wb_dir, "update_notice.txt")
