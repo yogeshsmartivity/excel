@@ -59,6 +59,14 @@ def check_for_updates(workbook_path=None):
                     price_path = os.path.join(wb_dir, "master_price_list.xlsx")
                     urllib.request.urlretrieve(price_url, price_path)
                     
+                    # Download updated master_discount_list.xlsx
+                    disc_url = GITHUB_RAW_BASE + "master_discount_list.xlsx"
+                    disc_path = os.path.join(wb_dir, "master_discount_list.xlsx")
+                    try:
+                        urllib.request.urlretrieve(disc_url, disc_path)
+                    except Exception:
+                        pass
+                    
                     # Write updated version.txt
                     with open(version_file, "w", encoding="utf-8") as vf:
                         vf.write(f"VERSION={online_ver}\n")
@@ -72,7 +80,7 @@ def check_for_updates(workbook_path=None):
 
 def sync_master_price_list(wb, wb_dir):
     """
-    If master_price_list.xlsx exists, syncs updated rows into wb.Sheets("Price list").
+    If master_price_list.xlsx or master_discount_list.xlsx exists, syncs updated rows into Price list and discount sheets.
     """
     master_path = os.path.join(wb_dir, "master_price_list.xlsx")
     if os.path.exists(master_path):
@@ -96,6 +104,31 @@ def sync_master_price_list(wb, wb_dir):
                 print("Price list synced successfully from Master File!")
         except Exception as sync_err:
             print(f"Warning syncing master price list: {sync_err}")
+
+    # Sync Master Discount List
+    disc_master_path = os.path.join(wb_dir, "master_discount_list.xlsx")
+    target_disc_path = disc_master_path if os.path.exists(disc_master_path) else master_path
+    if os.path.exists(target_disc_path):
+        try:
+            import openpyxl
+            wb_disc = openpyxl.load_workbook(target_disc_path, data_only=True)
+            if "discount" in wb_disc.sheetnames:
+                print("Syncing Master Discount List into active workbook...")
+                sh_dm = wb_disc["discount"]
+                sh_disc_wb = wb.Sheets("discount")
+                for r in range(2, min(200, sh_dm.max_row + 1)):
+                    pname = sh_dm.cell(r, 1).value
+                    if pname is not None:
+                        for c in range(1, min(7, sh_dm.max_column + 1)):
+                            val = sh_dm.cell(r, c).value
+                            if val is not None:
+                                try:
+                                    sh_disc_wb.Cells(r, c).Value = str(val) if not isinstance(val, (int, float)) else val
+                                except Exception:
+                                    pass
+                print("Discount list synced successfully from Master File!")
+        except Exception as d_err:
+            print(f"Warning syncing discount list: {d_err}")
 
 def parse_pdf_with_gemini(file_path, api_key):
     import google.generativeai as genai
