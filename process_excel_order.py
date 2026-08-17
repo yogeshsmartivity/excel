@@ -309,12 +309,12 @@ def parse_pdf_order(file_path):
                     tokens = smrt_line.split()
                     is_merged = True
                     
-                if len(tokens) >= 6:
+                if len(tokens) >= 4:
                     # Find the first token starting with or containing ₹
                     mrp_idx = -1
                     for t_idx, token in enumerate(tokens):
-                        if '₹' in token or token.startswith('₹') or (token.replace(',', '').replace('.', '').isdigit() and t_idx > 0 and len(tokens) >= 6):
-                            if '₹' in token or token.startswith('₹'):
+                        if '₹' in token or token.startswith('₹') or (token.replace(',', '').replace('.', '').replace('₹','').isdigit() and t_idx > 0):
+                            if '₹' in token or token.startswith('₹') or (token.replace(',', '').replace('.', '').isdigit() and t_idx == 1):
                                 mrp_idx = t_idx
                                 break
                                 
