@@ -1350,7 +1350,73 @@ def run_fill(workbook_path):
         
     print("Template populated successfully!")
 
+def push_team_masters(workbook_path):
+    wb_dir = os.path.dirname(os.path.abspath(workbook_path)) if workbook_path else os.path.dirname(os.path.abspath(__file__))
+    print("Exporting active workbook sheets to Master Excel files...")
+    
+    import openpyxl
+    wb = openpyxl.load_workbook(workbook_path, data_only=True)
+    
+    # Export master_price_list.xlsx
+    master_price_path = os.path.join(wb_dir, "master_price_list.xlsx")
+    wb_price = openpyxl.Workbook()
+    wb_price.remove(wb_price.active)
+    for sheet_name in ["Price list", "discount"]:
+        if sheet_name in wb.sheetnames:
+            sh_src = wb[sheet_name]
+            sh_dst = wb_price.create_sheet(title=sheet_name)
+            for r in range(1, sh_src.max_row + 1):
+                row_vals = [sh_src.cell(r, c).value for c in range(1, sh_src.max_column + 1)]
+                sh_dst.append(row_vals)
+    wb_price.save(master_price_path)
+    
+    # Export master_discount_list.xlsx
+    master_discount_path = os.path.join(wb_dir, "master_discount_list.xlsx")
+    wb_disc = openpyxl.Workbook()
+    sh_disc_dst = wb_disc.active
+    sh_disc_dst.title = "discount"
+    if "discount" in wb.sheetnames:
+        sh_disc_src = wb["discount"]
+        for r in range(1, sh_disc_src.max_row + 1):
+            row_vals = [sh_disc_src.cell(r, c).value for c in range(1, sh_disc_src.max_column + 1)]
+            sh_disc_dst.append(row_vals)
+    wb_disc.save(master_discount_path)
+    
+    # Increment minor version in version.txt
+    ver_path = os.path.join(wb_dir, "version.txt")
+    next_ver = CURRENT_VERSION
+    try:
+        ver_parts = CURRENT_VERSION.split(".")
+        ver_parts[-1] = str(int(ver_parts[-1]) + 1)
+        next_ver = ".".join(ver_parts)
+    except Exception:
+        pass
+        
+    with open(ver_path, "w", encoding="utf-8") as vf:
+        vf.write(f"VERSION={next_ver}\n")
+        
+    print(f"Master files exported and Version bumped to v{next_ver}.")
+    
+    # Call github_api_push.py
+    import subprocess
+    push_script = os.path.join(wb_dir, "github_api_push.py")
+    res = subprocess.run([sys.executable, push_script], capture_output=True, text=True)
+    
+    notice_path = os.path.join(wb_dir, "update_notice.txt")
+    if res.returncode == 0:
+        msg = f"🎉 MASTER PRICE LIST & DISCOUNTS PUSHED TO GITHUB!\n\nNew Version v{next_ver} is now LIVE on GitHub.\nAll team members will automatically receive these updated rates when they import orders or click Update App."
+        with open(notice_path, "w", encoding="utf-8") as nf:
+            nf.write("STATUS=UPDATED\n")
+            nf.write(f"VERSION={next_ver}\n")
+            nf.write(f"MSG={msg}")
+    else:
+        msg = f"Error pushing to GitHub: {res.stderr}"
+        with open(notice_path, "w", encoding="utf-8") as nf:
+            nf.write("STATUS=ERROR\n")
+            nf.write(f"MSG={msg}")
+
 if __name__ == "__main__":
+    import argparse
     import traceback
     
     args_workbook = None
@@ -1358,23 +1424,29 @@ if __name__ == "__main__":
         parser = argparse.ArgumentParser(description="Process Excel Order Sheets")
         parser.add_argument("--import", action="store_true", dest="import_mode", help="Run in order import mode")
         parser.add_argument("--fill", action="store_true", dest="fill_mode", help="Run in template fill mode")
+        parser.add_argument("--check-update", action="store_true", dest="check_update_mode", help="Check for updates from GitHub")
+        parser.add_argument("--push-masters", action="store_true", dest="push_masters_mode", help="Push updated Price list and discounts to GitHub")
         parser.add_argument("--order", type=str, help="Path to selected order file")
         parser.add_argument("--workbook", type=str, required=True, help="Path to active workbook")
         
         args = parser.parse_args()
         args_workbook = args.workbook
         
-        check_for_updates(args_workbook)
-        
-        if args.import_mode:
+        if args.check_update_mode:
+            run_manual_update_check(args.workbook)
+        elif args.push_masters_mode:
+            push_team_masters(args.workbook)
+        elif args.import_mode:
+            check_for_updates(args_workbook)
             if not args.order:
                 print("Error: --order is required in import mode.")
                 sys.exit(1)
             run_import(args.order, args.workbook)
         elif args.fill_mode:
+            check_for_updates(args_workbook)
             run_fill(args.workbook)
         else:
-            print("Error: Specify --import or --fill")
+            print("Error: Specify --import, --fill, --check-update or --push-masters")
             sys.exit(1)
             
     except Exception as e:
