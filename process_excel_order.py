@@ -11,12 +11,14 @@ import win32com.client
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
 CURRENT_VERSION = "1.0.0"
 
-def check_for_updates(workbook_path=None):
+def check_for_updates(workbook_path=None, force_download=False):
     """
-    Checks GitHub Raw URL for online updates and silently downloads:
-    1. process_excel_order.py (Backend Code)
-    2. master_price_list.xlsx (Master Price List & Discounts)
-    3. version.txt (Version Tracker)
+    Checks GitHub Raw URL for online updates and downloads missing or updated files:
+    1. process_excel_order.py
+    2. github_api_push.py
+    3. master_price_list.xlsx
+    4. master_discount_list.xlsx
+    5. version.txt
     """
     try:
         import urllib.request
@@ -33,63 +35,63 @@ def check_for_updates(workbook_path=None):
             except Exception:
                 pass
                 
+        # Check for missing critical files locally
+        missing_files = []
+        for check_fn in ["github_api_push.py", "master_price_list.xlsx", "master_discount_list.xlsx"]:
+            if not os.path.exists(os.path.join(wb_dir, check_fn)):
+                missing_files.append(check_fn)
+                
         print(f"System Version: v{current_ver} (GitHub Full Auto-Sync Enabled)")
         
-        # Check GitHub raw version.txt
+        online_ver = current_ver
         try:
             online_ver_url = GITHUB_RAW_BASE + "version.txt"
             req = urllib.request.Request(online_ver_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=3) as resp:
+            with urllib.request.urlopen(req, timeout=5) as resp:
                 online_text = resp.read().decode('utf-8')
-                online_ver = current_ver
                 for l in online_text.split('\n'):
                     if l.startswith("VERSION="):
                         online_ver = l.strip().split("=")[1]
-                        
-                if online_ver != current_ver:
-                    print(f"New update found on GitHub (v{current_ver} -> v{online_ver})! Auto-updating...")
+        except Exception as net_err:
+            print(f"Could not reach GitHub for version check: {net_err}")
+
+        should_update = force_download or (online_ver != current_ver) or (len(missing_files) > 0)
+
+        if should_update:
+            print(f"Downloading latest files from GitHub (v{online_ver})...")
+            files_to_dl = [
+                "process_excel_order.py",
+                "github_api_push.py",
+                "master_price_list.xlsx",
+                "master_discount_list.xlsx",
+                "version.txt"
+            ]
+            for fn in files_to_dl:
+                try:
+                    dl_url = GITHUB_RAW_BASE + fn
+                    dl_path = os.path.join(wb_dir, fn)
+                    urllib.request.urlretrieve(dl_url, dl_path)
+                    print(f"  [DOWNLOADED] {fn}")
+                except Exception as dl_err:
+                    print(f"  [DL ERROR] {fn}: {dl_err}")
                     
-                    # Download updated process_excel_order.py
-                    py_url = GITHUB_RAW_BASE + "process_excel_order.py"
-                    py_path = os.path.join(wb_dir, "process_excel_order.py")
-                    urllib.request.urlretrieve(py_url, py_path)
-                    
-                    # Download updated master_price_list.xlsx
-                    price_url = GITHUB_RAW_BASE + "master_price_list.xlsx"
-                    price_path = os.path.join(wb_dir, "master_price_list.xlsx")
-                    urllib.request.urlretrieve(price_url, price_path)
-                    
-                    # Download updated github_api_push.py
-                    try:
-                        gpush_url = GITHUB_RAW_BASE + "github_api_push.py"
-                        gpush_path = os.path.join(wb_dir, "github_api_push.py")
-                        urllib.request.urlretrieve(gpush_url, gpush_path)
-                    except Exception:
-                        pass
-                    
-                    # Write updated version.txt
-                    with open(version_file, "w", encoding="utf-8") as vf:
-                        vf.write(f"VERSION={online_ver}\n")
-                        
-                    print(f"✅ System successfully auto-updated to v{online_ver} from GitHub!")
-                    
-                    notice_path = os.path.join(wb_dir, "update_notice.txt")
-                    try:
-                        with open(notice_path, "w", encoding="utf-8") as nf:
-                            nf.write("STATUS=UPDATED\n")
-                            nf.write(f"VERSION={online_ver}\n")
-                            nf.write(f"MSG=🚀 NEW UPDATE INSTALLED FROM GITHUB!\n\nSystem Version updated to v{online_ver}.\nAll master price lists, discount tables, and feature updates have been automatically downloaded to your PC!\n\nClick OK to start using the updated system.")
-                    except Exception:
-                        pass
-                        
-                    return True, online_ver
-        except Exception:
-            pass
-            
-        return False, current_ver
+            notice_path = os.path.join(wb_dir, "update_notice.txt")
+            msg = f"🚀 LATEST FILES INSTALLED FROM GITHUB!\n\nSystem Version: v{online_ver}\nAll master price lists, discount tables, and GitHub push engines have been updated on your PC!\n\nClick OK to continue."
+            try:
+                with open(notice_path, "w", encoding="utf-8") as nf:
+                    nf.write("STATUS=UPDATED\n")
+                    nf.write(f"VERSION={online_ver}\n")
+                    nf.write(f"MSG={msg}")
+            except Exception:
+                pass
+                
+            return True, online_ver
+        else:
+            return False, current_ver
             
     except Exception as e:
         print(f"Auto-update check skipped: {e}")
+        return False, CURRENT_VERSION
 
 def sync_master_price_list(wb, wb_dir):
     """
@@ -1442,7 +1444,7 @@ if __name__ == "__main__":
         args_workbook = args.workbook
         
         if args.check_update_mode:
-            run_manual_update_check(args.workbook)
+            check_for_updates(args.workbook, force_download=True)
         elif args.push_masters_mode:
             push_team_masters(args.workbook)
         elif args.import_mode:
