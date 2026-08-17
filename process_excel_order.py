@@ -981,8 +981,8 @@ def run_import(order_path, workbook_path):
             
     # 3. Clear existing table
     print(f"Clearing old data on {active_sheet_name} sheet...")
+    sh_order.Range("C4").Value = ""
     sh_order.Range("C5").Value = ""
-    sh_order.Range("C6").Value = ""
     
     last_row = sh_order.Cells(sh_order.Rows.Count, "A").End(-4162).Row # -4162 = xlUp
     if last_row >= 11:
@@ -991,8 +991,8 @@ def run_import(order_path, workbook_path):
         
     # 4. Populate table and write formulas dynamically
     print("Writing new items and formulas...")
-    sh_order.Range("C5").Value = party_name
-    sh_order.Range("C6").Value = os.path.basename(order_path)
+    sh_order.Range("C4").Value = party_name
+    sh_order.Range("C5").Value = os.path.basename(order_path)
     
     # Load Party Discounts for smart matching
     sh_disc = wb.Sheets("discount")
