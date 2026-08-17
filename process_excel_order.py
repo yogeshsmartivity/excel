@@ -1063,12 +1063,91 @@ def run_import(order_path, workbook_path):
         else:
             sh_order.Cells(r, 13).Value = f'=IF(ISBLANK(A{r}), "", IF(F{r}="", "⚠️ SKU not found in Price List", IF(ROUND(E{r},2)<>ROUND(G{r},2), "⚠️ Price Mismatch! (PO: " & TEXT(E{r},"#,##0.00") & ", List: " & TEXT(G{r},"#,##0.00") & ")", "✅ OK")))'
         
+    # 5. Write GRAND TOTAL summary row at the bottom of the table
+    if len(items) > 0:
+        last_item_row = 10 + len(items)
+        tot_row = last_item_row + 1
+        
+        sh_order.Range(f"A{tot_row}:B{tot_row}").Merge()
+        sh_order.Range(f"A{tot_row}").Value = "GRAND TOTAL"
+        sh_order.Range(f"A{tot_row}").HorizontalAlignment = -4108 # xlCenter
+        
+        sh_order.Cells(tot_row, 3).Value = f"=SUM(C11:C{last_item_row})"
+        sh_order.Cells(tot_row, 4).Value = f"=SUM(D11:D{last_item_row})"
+        sh_order.Cells(tot_row, 11).Value = f"=SUM(K11:K{last_item_row})"
+        sh_order.Cells(tot_row, 12).Value = f"=SUM(L11:L{last_item_row})"
+        
+        tot_range = sh_order.Range(f"A{tot_row}:L{tot_row}")
+        tot_range.Font.Name = "Segoe UI"
+        tot_range.Font.Size = 11
+        tot_range.Font.Bold = True
+        tot_range.Interior.Color = 14803425 # Light Slate #CBD5E1
+        tot_range.Borders.Weight = 3 # Thick border
+        
     try:
         excel.Calculate()
         print("Excel formulas recalculated successfully.")
     except Exception as calc_err:
         print(f"Warning: Could not trigger Excel calculation: {calc_err}")
         
+    # 6. Audit rows for Missing SKUs, Zero Prices, or Price Mismatches & Popup Alert
+    issues = []
+    if len(items) > 0:
+        last_item_row = 10 + len(items)
+        for r in range(11, last_item_row + 1):
+            sku_val = str(sh_order.Cells(r, 1).Value or "").strip()
+            name_val = str(sh_order.Cells(r, 2).Value or "").strip()
+            plist_sku = str(sh_order.Cells(r, 6).Value or "").strip()
+            
+            try:
+                base_price = float(sh_order.Cells(r, 7).Value or 0.0)
+            except (ValueError, TypeError):
+                base_price = 0.0
+                
+            try:
+                mrp_val = float(sh_order.Cells(r, 5).Value or 0.0)
+            except (ValueError, TypeError):
+                mrp_val = 0.0
+                
+            # Check 1: Missing SKU in Price list
+            if not plist_sku or plist_sku in ["", "#N/A", "#VALUE!"]:
+                try:
+                    sh_order.Range(f"A{r}:F{r}").Interior.Color = 9498110 # Light Yellow (#FEF08A)
+                except Exception:
+                    pass
+                issues.append(f"• Row {r}: SKU '{sku_val}' ({name_val}) — Not found in Price List!")
+            # Check 2: Zero Base Price
+            elif base_price <= 0:
+                try:
+                    sh_order.Range(f"G{r}").Interior.Color = 9498110 # Light Yellow
+                except Exception:
+                    pass
+                issues.append(f"• Row {r}: Base Price is \u20b90.00 for '{sku_val}'!")
+            # Check 3: Price Mismatch
+            elif abs(mrp_val - base_price) > 0.01 and mrp_val > 0:
+                try:
+                    sh_order.Range(f"E{r}").Interior.Color = 11181822 # Light Orange (#FED7AA)
+                    sh_order.Range(f"G{r}").Interior.Color = 11181822
+                except Exception:
+                    pass
+                issues.append(f"• Row {r}: Price Mismatch for '{sku_val}' (Order MRP: \u20b9{mrp_val:.2f}, Price List: \u20b9{base_price:.2f})")
+
+    if issues:
+        warning_msg = f"⚠️ ATTENTION: {len(issues)} ITEM(S) NEED REVIEW!\n\n"
+        warning_msg += "\n".join(issues[:10])
+        if len(issues) > 10:
+            warning_msg += f"\n... and {len(issues) - 10} more items."
+        warning_msg += "\n\nNote: Highlighted in Yellow/Orange cells on sheet for review."
+        
+        print("\n" + "="*50)
+        print(warning_msg)
+        print("="*50 + "\n")
+        
+        try:
+            excel.MsgBox(warning_msg, 48, "Smartivity Order Import Warnings")
+        except Exception:
+            pass
+
     print("Import and verification completed successfully!")
 
 def run_fill(workbook_path):
