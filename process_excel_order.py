@@ -83,11 +83,16 @@ def sync_master_price_list(wb, wb_dir):
             if "Price list" in wb_master.sheetnames:
                 sh_m = wb_master["Price list"]
                 sh_price = wb.Sheets("Price list")
-                for r in range(2, sh_m.max_row + 1):
-                    for c in range(1, min(12, sh_m.max_column + 1)):
-                        val = sh_m.cell(r, c).value
-                        if val is not None:
-                            sh_price.Cells(r, c).Value = val
+                for r in range(2, min(500, sh_m.max_row + 1)):
+                    std_sku = sh_m.cell(r, 2).value
+                    if std_sku is not None:
+                        for c in range(1, 10):
+                            val = sh_m.cell(r, c).value
+                            if val is not None:
+                                try:
+                                    sh_price.Cells(r, c).Value = str(val) if not isinstance(val, (int, float)) else val
+                                except Exception:
+                                    pass
                 print("Price list synced successfully from Master File!")
         except Exception as sync_err:
             print(f"Warning syncing master price list: {sync_err}")
