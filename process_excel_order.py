@@ -266,7 +266,18 @@ def parse_pdf_order(file_path):
         line = lines[i].strip()
         match_idx = re.match(r'^(\d+)(?:\s+(.*))?$', line)
         if match_idx:
+            try:
+                sr_num = int(match_idx.group(1))
+                if sr_num > 100 or sr_num < 1:
+                    i += 1
+                    continue
+            except ValueError:
+                pass
+                
             first_name_part = match_idx.group(2) if match_idx.group(2) else ""
+            if any(k in first_name_part.upper() for k in ["REMARKS", "PENDING INVOICE", "FOC SCHEME", "INVOICE NO"]):
+                i += 1
+                continue
             
             # Find the SMRT line
             smrt_idx = -1
@@ -278,11 +289,11 @@ def parse_pdf_order(file_path):
             if smrt_idx != -1:
                 # Reconstruct product name
                 name_parts = []
-                if first_name_part.strip():
+                if first_name_part.strip() and not any(k in first_name_part.upper() for k in ["FOC SCHEME", "PENDING INVOICE"]):
                     name_parts.append(first_name_part.strip())
                 for k in range(i + 1, smrt_idx):
                     part = lines[k].strip()
-                    if not part.startswith("SMRT") and not part.isdigit() and "BILL TO" not in part and "ORDER INFO" not in part:
+                    if not part.startswith("SMRT") and not part.isdigit() and "BILL TO" not in part and "ORDER INFO" not in part and "FOC SCHEME" not in part and "PENDING INVOICE" not in part:
                         name_parts.append(part)
                 name = " ".join(name_parts)
                 
