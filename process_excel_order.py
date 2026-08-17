@@ -945,6 +945,31 @@ def run_import(order_path, workbook_path):
     sh_order.Range("C5").Value = party_name
     sh_order.Range("C6").Value = os.path.basename(order_path)
     
+    # Load Party Discounts for smart matching
+    sh_disc = wb.Sheets("discount")
+    last_disc_row = sh_disc.Cells(sh_disc.Rows.Count, "A").End(-4162).Row
+    party_discounts = {}
+    for dr in range(2, last_disc_row + 1):
+        pname = str(sh_disc.Cells(dr, 1).Value or "").strip().upper()
+        pclean = str(sh_disc.Cells(dr, 2).Value or "").strip().upper()
+        d5 = float(sh_disc.Cells(dr, 3).Value or 0.0)
+        d12 = float(sh_disc.Cells(dr, 4).Value or 0.0)
+        d18 = float(sh_disc.Cells(dr, 5).Value or 0.0)
+        d28 = float(sh_disc.Cells(dr, 6).Value or 0.0)
+        disc_dict = {0.05: d5, 0.12: d12, 0.18: d18, 0.28: d28}
+        if pname and pname != "NONE":
+            party_discounts[pname] = disc_dict
+        if pclean and pclean != "NONE":
+            party_discounts[pclean] = disc_dict
+
+    # Find matching party discount dict
+    matched_party_disc = None
+    clean_party_upper = party_name.upper().strip()
+    for pk, pd_dict in party_discounts.items():
+        if pk in clean_party_upper or clean_party_upper in pk:
+            matched_party_disc = pd_dict
+            break
+
     for idx, item in enumerate(items):
         r = 11 + idx
         sh_order.Cells(r, 1).Value = item['sku']
@@ -964,7 +989,10 @@ def run_import(order_path, workbook_path):
             base_cost = item.get('base_cost', 0.0)
             sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), 0, IF(G{r}=0, 0, ROUND(1 - ({base_cost} / G{r}), 5)))'
         else:
-            sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, MATCH(UPPER(TRIM($C$5)), discount!B:B, 0)), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, MATCH(UPPER(TRIM($C$5)), discount!B:B, 0)), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, MATCH(UPPER(TRIM($C$5)), discount!B:B, 0)), INDEX(discount!C:C, MATCH(UPPER(TRIM($C$5)), discount!B:B, 0))))), 0))'
+            default_disc_val = 0.533898
+            if matched_party_disc:
+                default_disc_val = matched_party_disc.get(0.18, 0.533898)
+            sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, MATCH("*" & UPPER(TRIM($C$5)) & "*", discount!B:B, 0)), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, MATCH("*" & UPPER(TRIM($C$5)) & "*", discount!B:B, 0)), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, MATCH("*" & UPPER(TRIM($C$5)) & "*", discount!B:B, 0)), INDEX(discount!C:C, MATCH("*" & UPPER(TRIM($C$5)) & "*", discount!B:B, 0))))), {default_disc_val}))'
             
         sh_order.Cells(r, 11).Value = f'=IF(ISBLANK(A{r}), "", ROUND(G{r}*C{r}*J{r},2))'
         sh_order.Cells(r, 12).Value = f'=IF(ISBLANK(A{r}), "", (G{r}*C{r})-K{r})'
