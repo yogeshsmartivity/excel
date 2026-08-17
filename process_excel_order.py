@@ -1038,10 +1038,12 @@ def run_import(order_path, workbook_path):
             base_cost = item.get('base_cost', 0.0)
             sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), 0, IF(G{r}=0, 0, ROUND(1 - ({base_cost} / G{r}), 5)))'
         else:
-            default_disc_val = 0.533898
+            d5_val = 0.4762
+            d18_val = 0.533898
             if matched_party_disc:
-                default_disc_val = matched_party_disc.get(0.18, 0.533898)
-            sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, MATCH("*" & UPPER(TRIM($C$5)) & "*", discount!B:B, 0)), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, MATCH("*" & UPPER(TRIM($C$5)) & "*", discount!B:B, 0)), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, MATCH("*" & UPPER(TRIM($C$5)) & "*", discount!B:B, 0)), INDEX(discount!C:C, MATCH("*" & UPPER(TRIM($C$5)) & "*", discount!B:B, 0))))), {default_disc_val}))'
+                d5_val = matched_party_disc.get(0.05, 0.4762)
+                d18_val = matched_party_disc.get(0.18, 0.533898)
+            sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.05, INDEX(discount!C:C, MATCH("*" & UPPER(TRIM($C$4)) & "*", discount!B:B, 0)), IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, MATCH("*" & UPPER(TRIM($C$4)) & "*", discount!B:B, 0)), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, MATCH("*" & UPPER(TRIM($C$4)) & "*", discount!B:B, 0)), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, MATCH("*" & UPPER(TRIM($C$4)) & "*", discount!B:B, 0)), INDEX(discount!C:C, MATCH("*" & UPPER(TRIM($C$4)) & "*", discount!B:B, 0)))))), IF(ROUND(H{r},2)=0.05, {d5_val}, {d18_val})))'
             
         sh_order.Cells(r, 11).Value = f'=IF(ISBLANK(A{r}), "", ROUND(G{r}*C{r}*J{r},2))'
         try:
