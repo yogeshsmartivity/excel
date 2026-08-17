@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.0.3"
+CURRENT_VERSION = "1.0.0"
 
 def check_for_updates(workbook_path=None):
     """
@@ -1044,7 +1044,10 @@ def run_import(order_path, workbook_path):
             sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, MATCH("*" & UPPER(TRIM($C$5)) & "*", discount!B:B, 0)), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, MATCH("*" & UPPER(TRIM($C$5)) & "*", discount!B:B, 0)), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, MATCH("*" & UPPER(TRIM($C$5)) & "*", discount!B:B, 0)), INDEX(discount!C:C, MATCH("*" & UPPER(TRIM($C$5)) & "*", discount!B:B, 0))))), {default_disc_val}))'
             
         sh_order.Cells(r, 11).Value = f'=IF(ISBLANK(A{r}), "", ROUND(G{r}*C{r}*J{r},2))'
-        sh_order.Cells(r, 12).Value = f'=IF(ISBLANK(A{r}), "", (G{r}*C{r})-K{r})'
+        try:
+            sh_order.Cells(r, 12).Value = f'=IF(ISBLANK(A{r}), "", (G{r}*C{r})-K{r})'
+        except Exception:
+            pass
         
         # Build status note based on fuzzy match & price correction
         status_note = ""
