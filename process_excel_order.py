@@ -73,12 +73,15 @@ def check_for_updates(workbook_path=None):
                         
                     print(f"✅ System successfully auto-updated to v{online_ver} from GitHub!")
                     
+                    notice_path = os.path.join(wb_dir, "update_notice.txt")
                     try:
-                        excel_app = win32com.client.GetActiveObject("Excel.Application")
-                        msg_str = f"🚀 NEW UPDATE INSTALLED FROM GITHUB!\n\nSystem Version updated to v{online_ver}.\nAll master price lists, discount tables, and feature updates have been automatically downloaded to your PC!\n\nClick OK to continue."
-                        excel_app.MsgBox(msg_str, 64, "Smartivity Auto-Update Notification")
+                        with open(notice_path, "w", encoding="utf-8") as nf:
+                            nf.write("STATUS=UPDATED\n")
+                            nf.write(f"VERSION={online_ver}\n")
+                            nf.write(f"MSG=🚀 NEW UPDATE INSTALLED FROM GITHUB!\n\nSystem Version updated to v{online_ver}.\nAll master price lists, discount tables, and feature updates have been automatically downloaded to your PC!\n\nClick OK to start using the updated system.")
                     except Exception:
                         pass
+                        
                     return True, online_ver
         except Exception:
             pass
