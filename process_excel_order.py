@@ -1369,14 +1369,7 @@ def run_fill(workbook_path):
         for col_idx, val in enumerate(row_val, 1):
             sh_temp.Cells(r_temp, col_idx).Value = val
 
-    print("Template populated directly on active sheet with headers intact (No extra file saved on disk)!")
-        
-    try:
-        wb.Save()
-    except Exception:
-        pass
-        
-    print("Template populated successfully!")
+    print("Template populated directly on active sheet with headers intact!")
 
 def push_team_masters(workbook_path):
     wb_dir = os.path.dirname(os.path.abspath(workbook_path)) if workbook_path else os.path.dirname(os.path.abspath(__file__))
