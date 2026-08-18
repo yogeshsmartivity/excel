@@ -11,7 +11,7 @@ TOKEN = "ghp_" + "7ER7UBvA8ACUpSS9kW0f3JXNkPJpYC2ur1F7"
 OWNER = "yogeshsmartivity"
 REPO = "excel"
 BRANCH = "main"
-BASE_DIR = "d:/My Project/Excel"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 files_to_push = [
     "Order_Processor.xlsm",
