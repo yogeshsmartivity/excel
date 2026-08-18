@@ -331,62 +331,58 @@ def parse_pdf_order(file_path):
                     part = lines[k].strip()
                     if not part.startswith("SMRT") and not part.isdigit() and "BILL TO" not in part and "ORDER INFO" not in part and "FOC SCHEME" not in part and "PENDING INVOICE" not in part:
                         name_parts.append(part)
-                name = " ".join(name_parts)
+                # Clean up product name
+                name_parts_clean = []
+                for p in name_parts:
+                    p_clean = re.sub(r'^(.*?-\s*₹\d+\s*|\d+\s*)+', '', p).strip()
+                    if p_clean and not p_clean.isdigit():
+                        name_parts_clean.append(p_clean)
+                name = " ".join(name_parts_clean)
                 
-                # Get the SMRT line tokens
+                # Collect SMRT line and trailing numeric/scheme lines
                 smrt_line = lines[smrt_idx].strip()
                 tokens = smrt_line.split()
                 
-                # If numbers are on the next line, merge them
-                is_merged = False
-                if len(tokens) < 6 and smrt_idx + 1 < len(lines):
-                    next_line = lines[smrt_idx + 1].strip()
-                    smrt_line = smrt_line + " " + next_line
-                    tokens = smrt_line.split()
-                    is_merged = True
-                    
-                if len(tokens) >= 4:
-                    # Find the first token starting with or containing ₹
-                    mrp_idx = -1
+                advance_i = smrt_idx + 1
+                for k_next in range(smrt_idx + 1, min(smrt_idx + 4, len(lines))):
+                    nxt_str = lines[k_next].strip()
+                    if nxt_str.isdigit() or nxt_str.startswith("₹") or nxt_str.startswith("-"):
+                        tokens.extend(nxt_str.split())
+                        advance_i = k_next + 1
+                    else:
+                        break
+                        
+                mrp_idx = -1
+                for t_idx, token in enumerate(tokens):
+                    if '₹' in token or token.startswith('₹'):
+                        mrp_idx = t_idx
+                        break
+                if mrp_idx == -1:
                     for t_idx, token in enumerate(tokens):
-                        if '₹' in token or token.startswith('₹') or (token.replace(',', '').replace('.', '').replace('₹','').isdigit() and t_idx > 0):
-                            if '₹' in token or token.startswith('₹') or (token.replace(',', '').replace('.', '').isdigit() and t_idx == 1):
-                                mrp_idx = t_idx
-                                break
-                                
-                    # Fallback to first numeric token as MRP if no ₹ symbol is present
-                    if mrp_idx == -1:
-                        for t_idx, token in enumerate(tokens):
-                            if t_idx > 0 and token.replace(',', '').replace('.', '').isdigit():
-                                mrp_idx = t_idx
-                                break
-                                
-                    if mrp_idx != -1 and mrp_idx + 2 < len(tokens):
-                        sku = " ".join(tokens[0:mrp_idx])
-                        mrp_str = tokens[mrp_idx].replace('₹', '').replace(',', '').strip()
-                        try:
-                            mrp = float(mrp_str)
-                        except ValueError:
-                            mrp = 0.0
+                        if t_idx > 0 and token.replace(',', '').replace('.', '').isdigit():
+                            mrp_idx = t_idx
+                            break
+                            
+                if mrp_idx != -1:
+                    sku = tokens[0]
+                    mrp_str = tokens[mrp_idx].replace('₹', '').replace(',', '').strip()
+                    try:
+                        mrp = float(mrp_str)
+                    except ValueError:
+                        mrp = 0.0
+                        
+                    qty = 0
+                    scheme = 0
+                    if mrp_idx + 1 < len(tokens):
                         try:
                             qty = int(tokens[mrp_idx + 1])
+                        except ValueError:
+                            pass
+                    if mrp_idx + 2 < len(tokens):
+                        try:
                             scheme = int(tokens[mrp_idx + 2])
                         except ValueError:
-                            qty = 0
-                            scheme = 0
-                    else:
-                        sku = tokens[0]
-                        mrp_str = tokens[1].replace('₹', '').replace(',', '').strip()
-                        try:
-                            mrp = float(mrp_str)
-                        except ValueError:
-                            mrp = 0.0
-                        try:
-                            qty = int(tokens[2])
-                            scheme = int(tokens[3])
-                        except ValueError:
-                            qty = 0
-                            scheme = 0
+                            pass
                             
                     extracted_items.append({
                         'name': name,
@@ -395,7 +391,7 @@ def parse_pdf_order(file_path):
                         'qty': qty,
                         'scheme': scheme
                     })
-                    i = smrt_idx + (2 if is_merged else 1)
+                    i = advance_i
                     continue
         i += 1
     return party_name, extracted_items
@@ -1073,13 +1069,7 @@ def run_import(order_path, workbook_path):
         if active_sheet_name == "Firstcry Order":
             base_cost = item.get('base_cost', 0.0)
             sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), 0, IF(G{r}=0, 0, ROUND(1 - ({base_cost} / G{r}), 5)))'
-        else:
-            d5_val = 0.4762
-            d18_val = 0.533898
-            if matched_party_disc:
-                d5_val = matched_party_disc.get(0.05, 0.4762)
-                d18_val = matched_party_disc.get(0.18, 0.533898)
-            sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.05, INDEX(discount!C:C, MATCH("*" & UPPER(TRIM($C$4)) & "*", discount!B:B, 0)), IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, MATCH("*" & UPPER(TRIM($C$4)) & "*", discount!B:B, 0)), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, MATCH("*" & UPPER(TRIM($C$4)) & "*", discount!B:B, 0)), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, MATCH("*" & UPPER(TRIM($C$4)) & "*", discount!B:B, 0)), INDEX(discount!C:C, MATCH("*" & UPPER(TRIM($C$4)) & "*", discount!B:B, 0)))))), IF(ROUND(H{r},2)=0.05, {d5_val}, {d18_val})))'
+            sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.05, INDEX(discount!C:C, MATCH($C$4, discount!A:A, 0)), IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, MATCH($C$4, discount!A:A, 0)), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, MATCH($C$4, discount!A:A, 0)), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, MATCH($C$4, discount!A:A, 0)), INDEX(discount!C:C, MATCH($C$4, discount!A:A, 0)))))), 0))'
             
         sh_order.Cells(r, 11).Value = f'=IF(ISBLANK(A{r}), "", ROUND(G{r}*C{r}*J{r},2))'
         try:
