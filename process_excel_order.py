@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.1.4"
+CURRENT_VERSION = "1.1.5"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1311,11 +1311,15 @@ def run_fill(workbook_path):
         print("Error: No valid rows to process.")
         return
         
-    # 2. Clear Template Sheet
-    print("Clearing template sheet...")
+    # 2. Clear Template Data (Row 2 downwards) and Ensure Headers on Row 1
+    print("Clearing template sheet data...")
+    headers = ["ItemCode", "VariantCodeNo", "Quantity", "Price", "DiscountPercent", "DiscountAmount", "GSTPercent", "CustomerItemCode", "CustomerItemName", "ItemRemark", "InputField"]
+    for col_idx, h_text in enumerate(headers, 1):
+        sh_temp.Cells(1, col_idx).Value = h_text
+        
     last_temp_row = sh_temp.Cells(sh_temp.Rows.Count, "A").End(-4162).Row
     if last_temp_row >= 2:
-        sh_temp.Range(f"A2:K{last_temp_row}").ClearContents()
+        sh_temp.Range(f"A2:K{last_temp_row + 10}").ClearContents()
         
     # 3. Build output rows (interleaving main and scheme rows)
     template_rows = []
@@ -1364,27 +1368,8 @@ def run_fill(workbook_path):
         r_temp = 2 + idx
         for col_idx, val in enumerate(row_val, 1):
             sh_temp.Cells(r_temp, col_idx).Value = val
-            
-    # 5. Auto-Export Template to separate xlsx workbook silently
-    try:
-        base_name = os.path.splitext(os.path.basename(str(order_file)))[0] if order_file else "Order"
-        default_filename = f"{base_name}_mapped.xlsx"
-        export_path = os.path.join(os.path.dirname(os.path.abspath(workbook_path)), default_filename)
-        
-        if os.path.exists(export_path):
-            try:
-                os.remove(export_path)
-            except Exception:
-                pass
-                
-        print(f"Exporting template silently to: {export_path}...")
-        sh_temp.Copy()
-        new_wb = excel.ActiveWorkbook
-        new_wb.SaveAs(os.path.abspath(export_path), 51) # 51 = xlOpenXMLWorkbook (.xlsx)
-        new_wb.Close(False)
-        print("Template exported successfully!")
-    except Exception as exp_err:
-        print(f"Warning during auto-export: {exp_err}")
+
+    print("Template populated directly on active sheet with headers intact (No extra file saved on disk)!")
         
     try:
         wb.Save()
