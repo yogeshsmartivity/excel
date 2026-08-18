@@ -102,3 +102,5 @@ for fn in files_to_push:
         success_count += 1
 
 print(f"\nResult: {success_count}/{len(files_to_push)} files successfully pushed to GitHub repository '{OWNER}/{REPO}'!")
+if success_count < len(files_to_push):
+    sys.exit(1)
