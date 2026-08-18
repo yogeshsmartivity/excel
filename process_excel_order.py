@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.1.0"
+CURRENT_VERSION = "1.1.1"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -149,6 +149,16 @@ def sync_master_price_list(wb, wb_dir):
                                 sh_price.Cells(r, c).Value = str(val) if not isinstance(val, (int, float)) else val
                             except Exception:
                                 pass
+                                
+                # Clear trailing rows beyond master max_row
+                try:
+                    last_price_r = max(sh_price.Cells(sh_price.Rows.Count, "A").End(-4162).Row, sh_price.Cells(sh_price.Rows.Count, "B").End(-4162).Row)
+                    if last_price_r > sh_m.max_row:
+                        sh_price.Range(f"A{sh_m.max_row + 1}:K{last_price_r + 10}").ClearContents()
+                        print(f"Cleared trailing deleted rows {sh_m.max_row + 1} to {last_price_r}.")
+                except Exception as clr_err:
+                    print(f"Note clearing trailing rows: {clr_err}")
+                    
                 print(f"Price list synced successfully ({sh_m.max_row} rows)!")
         except Exception as sync_err:
             print(f"Warning syncing master price list: {sync_err}")
@@ -1449,7 +1459,7 @@ def push_team_masters(workbook_path):
     try:
         with open(py_script, "r", encoding="utf-8") as pf:
             py_code = pf.read()
-        py_code_new = py_code.replace(f'CURRENT_VERSION = "1.1.0"', f'CURRENT_VERSION = "1.1.0"')
+        py_code_new = py_code.replace(f'CURRENT_VERSION = "{CURRENT_VERSION}"', f'CURRENT_VERSION = "{next_ver}"')
         with open(py_script, "w", encoding="utf-8") as pf:
             pf.write(py_code_new)
     except Exception as py_ver_err:
