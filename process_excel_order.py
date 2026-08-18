@@ -1356,6 +1356,26 @@ def push_team_masters(workbook_path):
     wb_dir = os.path.dirname(os.path.abspath(workbook_path)) if workbook_path else os.path.dirname(os.path.abspath(__file__))
     print("Exporting active workbook sheets to Master Excel files...")
     
+    # Read live unsaved cells directly from active Excel COM window
+    excel_data = {}
+    try:
+        excel = win32com.client.GetActiveObject("Excel.Application")
+        wb_active = excel.ActiveWorkbook
+        for sheet_name in ["Price list", "discount"]:
+            if sheet_name in [s.Name for s in wb_active.Sheets]:
+                sh = wb_active.Sheets(sheet_name)
+                last_r = max(sh.Cells(sh.Rows.Count, "A").End(-4162).Row, sh.Cells(sh.Rows.Count, "B").End(-4162).Row)
+                last_c = sh.Cells(1, sh.Columns.Count).End(-4159).Column
+                if last_c < 6:
+                    last_c = 6
+                grid = []
+                for r in range(1, last_r + 1):
+                    row_v = [sh.Cells(r, c).Value for c in range(1, last_c + 1)]
+                    grid.append(row_v)
+                excel_data[sheet_name] = grid
+    except Exception as com_err:
+        print(f"Note: Excel COM live read note ({com_err}), falling back to openpyxl disk read...")
+        
     import openpyxl
     wb = openpyxl.load_workbook(workbook_path, data_only=True)
     
@@ -1364,9 +1384,12 @@ def push_team_masters(workbook_path):
     wb_price = openpyxl.Workbook()
     wb_price.remove(wb_price.active)
     for sheet_name in ["Price list", "discount"]:
-        if sheet_name in wb.sheetnames:
+        sh_dst = wb_price.create_sheet(title=sheet_name)
+        if sheet_name in excel_data:
+            for row_vals in excel_data[sheet_name]:
+                sh_dst.append(row_vals)
+        elif sheet_name in wb.sheetnames:
             sh_src = wb[sheet_name]
-            sh_dst = wb_price.create_sheet(title=sheet_name)
             for r in range(1, sh_src.max_row + 1):
                 row_vals = [sh_src.cell(r, c).value for c in range(1, sh_src.max_column + 1)]
                 sh_dst.append(row_vals)
@@ -1377,7 +1400,10 @@ def push_team_masters(workbook_path):
     wb_disc = openpyxl.Workbook()
     sh_disc_dst = wb_disc.active
     sh_disc_dst.title = "discount"
-    if "discount" in wb.sheetnames:
+    if "discount" in excel_data:
+        for row_vals in excel_data["discount"]:
+            sh_disc_dst.append(row_vals)
+    elif "discount" in wb.sheetnames:
         sh_disc_src = wb["discount"]
         for r in range(1, sh_disc_src.max_row + 1):
             row_vals = [sh_disc_src.cell(r, c).value for c in range(1, sh_disc_src.max_column + 1)]
