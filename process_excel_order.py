@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.1.5"
+CURRENT_VERSION = "1.1.6"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1037,19 +1037,26 @@ def run_import(order_path, workbook_path):
     sh_order.Range("C4").Value = ""
     sh_order.Range("C5").Value = ""
     
-    last_row = max(sh_order.Cells(sh_order.Rows.Count, "A").End(-4162).Row, sh_order.Cells(sh_order.Rows.Count, "B").End(-4162).Row, 150)
-    if last_row >= 11:
-        clear_rng = sh_order.Range(f"A11:N{last_row}")
-        try:
-            clear_rng.UnMerge()
-        except Exception:
-            pass
-        clear_rng.ClearContents()
-        try:
-            clear_rng.Font.Bold = False
-            clear_rng.Interior.ColorIndex = -4142 # xlNone
-        except Exception:
-            pass
+    clear_rng = sh_order.Range("A11:N200")
+    try:
+        clear_rng.UnMerge()
+    except Exception:
+        pass
+    clear_rng.ClearContents()
+    try:
+        clear_rng.ClearFormats()
+    except Exception:
+        pass
+    try:
+        clear_rng.FormatConditions.Delete()
+    except Exception:
+        pass
+    try:
+        clear_rng.Font.Bold = False
+        clear_rng.Interior.ColorIndex = -4142 # xlNone
+        clear_rng.Borders.LineStyle = -4142 # xlNone
+    except Exception:
+        pass
         
     # 4. Populate table and write formulas dynamically
     print("Writing new items and formulas...")
