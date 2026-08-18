@@ -75,8 +75,33 @@ def check_for_updates(workbook_path=None, force_download=False):
                 except Exception as dl_err:
                     print(f"  [DL ERROR] {fn}: {dl_err}")
                     
+            # Immediately sync master price list & discount sheets into active workbook
+            if workbook_path and os.path.exists(workbook_path):
+                try:
+                    excel_app = None
+                    try:
+                        excel_app = win32com.client.GetActiveObject("Excel.Application")
+                    except Exception:
+                        excel_app = win32com.client.Dispatch("Excel.Application")
+                        
+                    if excel_app:
+                        wb_active = None
+                        try:
+                            wb_active = excel_app.ActiveWorkbook
+                        except Exception:
+                            pass
+                            
+                        if not wb_active:
+                            wb_active = excel_app.Workbooks.Open(workbook_path)
+                            
+                        if wb_active:
+                            sync_master_price_list(wb_active, wb_dir)
+                            wb_active.Save()
+                except Exception as sync_active_err:
+                    print(f"Active workbook sync note: {sync_active_err}")
+
             notice_path = os.path.join(wb_dir, "update_notice.txt")
-            msg = f"🚀 LATEST FILES INSTALLED FROM GITHUB!\n\nSystem Version: v{online_ver}\nAll master price lists, discount tables, and GitHub push engines have been updated on your PC!\n\nClick OK to continue."
+            msg = f"🚀 LATEST PRICE LIST & DISCOUNTS INSTALLED FROM GITHUB!\n\nSystem Version: v{online_ver}\nAll master price lists, discount tables, and features have been updated in your active Excel workbook!\n\nClick OK to continue."
             try:
                 with open(notice_path, "w", encoding="utf-8") as nf:
                     nf.write("STATUS=UPDATED\n")
@@ -106,17 +131,15 @@ def sync_master_price_list(wb, wb_dir):
             if "Price list" in wb_master.sheetnames:
                 sh_m = wb_master["Price list"]
                 sh_price = wb.Sheets("Price list")
-                for r in range(2, min(500, sh_m.max_row + 1)):
-                    std_sku = sh_m.cell(r, 2).value
-                    if std_sku is not None:
-                        for c in range(1, 10):
-                            val = sh_m.cell(r, c).value
-                            if val is not None:
-                                try:
-                                    sh_price.Cells(r, c).Value = str(val) if not isinstance(val, (int, float)) else val
-                                except Exception:
-                                    pass
-                print("Price list synced successfully from Master File!")
+                for r in range(1, sh_m.max_row + 1):
+                    for c in range(1, max(7, sh_m.max_column + 1)):
+                        val = sh_m.cell(r, c).value
+                        if val is not None:
+                            try:
+                                sh_price.Cells(r, c).Value = str(val) if not isinstance(val, (int, float)) else val
+                            except Exception:
+                                pass
+                print(f"Price list synced successfully ({sh_m.max_row} rows)!")
         except Exception as sync_err:
             print(f"Warning syncing master price list: {sync_err}")
 
@@ -131,19 +154,17 @@ def sync_master_price_list(wb, wb_dir):
                 print("Syncing Master Discount List into active workbook...")
                 sh_dm = wb_disc["discount"]
                 sh_disc_wb = wb.Sheets("discount")
-                for r in range(2, min(200, sh_dm.max_row + 1)):
-                    pname = sh_dm.cell(r, 1).value
-                    if pname is not None:
-                        for c in range(1, min(7, sh_dm.max_column + 1)):
-                            val = sh_dm.cell(r, c).value
-                            if val is not None:
-                                try:
-                                    sh_disc_wb.Cells(r, c).Value = str(val) if not isinstance(val, (int, float)) else val
-                                except Exception:
-                                    pass
-                print("Discount list synced successfully from Master File!")
-        except Exception as d_err:
-            print(f"Warning syncing discount list: {d_err}")
+                for r in range(1, sh_dm.max_row + 1):
+                    for c in range(1, max(7, sh_dm.max_column + 1)):
+                        val = sh_dm.cell(r, c).value
+                        if val is not None:
+                            try:
+                                sh_disc_wb.Cells(r, c).Value = str(val) if not isinstance(val, (int, float)) else val
+                            except Exception:
+                                pass
+                print(f"Discount list synced successfully ({sh_dm.max_row} rows)!")
+        except Exception as disc_err:
+            print(f"Warning syncing discount list: {disc_err}")
 
 def parse_pdf_with_gemini(file_path, api_key):
     import google.generativeai as genai
