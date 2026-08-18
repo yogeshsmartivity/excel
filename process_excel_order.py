@@ -1412,16 +1412,20 @@ def push_team_masters(workbook_path):
             print(f"Failed to download github_api_push.py: {dl_err}")
             
     res = subprocess.run([sys.executable, push_script], capture_output=True, text=True)
-    
+    print("Push Output:\n", res.stdout)
+    if res.stderr:
+        print("Push Errors:\n", res.stderr)
+        
     notice_path = os.path.join(wb_dir, "update_notice.txt")
-    if res.returncode == 0:
+    if res.returncode == 0 and "[FAILED]" not in res.stdout:
         msg = f"🎉 MASTER PRICE LIST & DISCOUNTS PUSHED TO GITHUB!\n\nNew Version v{next_ver} is now LIVE on GitHub.\nAll team members will automatically receive these updated rates when they import orders or click Update App."
         with open(notice_path, "w", encoding="utf-8") as nf:
             nf.write("STATUS=UPDATED\n")
             nf.write(f"VERSION={next_ver}\n")
             nf.write(f"MSG={msg}")
     else:
-        msg = f"Error pushing to GitHub: {res.stderr}"
+        err_detail = res.stderr.strip() if res.stderr else res.stdout.strip()
+        msg = f"Error pushing to GitHub:\n{err_detail}"
         with open(notice_path, "w", encoding="utf-8") as nf:
             nf.write("STATUS=ERROR\n")
             nf.write(f"MSG={msg}")
