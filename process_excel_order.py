@@ -9,7 +9,17 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.0.6"
+CURRENT_VERSION = "1.0.8"
+
+_ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
+if os.path.exists(_ver_txt):
+    try:
+        with open(_ver_txt, "r", encoding="utf-8") as _vf:
+            for _line in _vf:
+                if _line.startswith("VERSION="):
+                    CURRENT_VERSION = _line.split("=")[1].strip()
+    except Exception:
+        pass
 
 def check_for_updates(workbook_path=None, force_download=False):
     """
