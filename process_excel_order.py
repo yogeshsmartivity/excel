@@ -1421,7 +1421,7 @@ def push_team_masters(workbook_path):
             sh_disc_dst.append(row_vals)
     wb_disc.save(master_discount_path)
     
-    # Increment minor version in version.txt
+    # Increment minor version in version.txt AND process_excel_order.py
     ver_path = os.path.join(wb_dir, "version.txt")
     next_ver = CURRENT_VERSION
     try:
@@ -1433,6 +1433,17 @@ def push_team_masters(workbook_path):
         
     with open(ver_path, "w", encoding="utf-8") as vf:
         vf.write(f"VERSION={next_ver}\n")
+        
+    # Also update CURRENT_VERSION inside process_excel_order.py
+    py_script = os.path.join(wb_dir, "process_excel_order.py")
+    try:
+        with open(py_script, "r", encoding="utf-8") as pf:
+            py_code = pf.read()
+        py_code_new = py_code.replace(f'CURRENT_VERSION = "{CURRENT_VERSION}"', f'CURRENT_VERSION = "{next_ver}"')
+        with open(py_script, "w", encoding="utf-8") as pf:
+            pf.write(py_code_new)
+    except Exception as py_ver_err:
+        print(f"Note updating py script version: {py_ver_err}")
         
     print(f"Master files exported and Version bumped to v{next_ver}.")
     
