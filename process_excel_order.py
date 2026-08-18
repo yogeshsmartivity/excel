@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.1.1"
+CURRENT_VERSION = "1.1.2"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -364,13 +364,14 @@ def parse_pdf_order(file_path):
                 tokens = smrt_line.split()
                 
                 advance_i = smrt_idx + 1
-                for k_next in range(smrt_idx + 1, min(smrt_idx + 4, len(lines))):
+                for k_next in range(smrt_idx + 1, min(smrt_idx + 5, len(lines))):
                     nxt_str = lines[k_next].strip()
-                    if nxt_str.isdigit() or nxt_str.startswith("₹") or nxt_str.startswith("-"):
+                    if nxt_str.isdigit() or "₹" in nxt_str or nxt_str.startswith("-"):
                         tokens.extend(nxt_str.split())
                         advance_i = k_next + 1
-                    else:
-                        break
+                    elif len(tokens) == 1 and ("₹" in nxt_str or any(c.isdigit() for c in nxt_str)):
+                        tokens.extend(nxt_str.split())
+                        advance_i = k_next + 1
                         
                 mrp_idx = -1
                 for t_idx, token in enumerate(tokens):
