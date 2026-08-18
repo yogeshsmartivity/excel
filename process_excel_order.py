@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.1.3"
+CURRENT_VERSION = "1.1.4"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -318,77 +318,61 @@ def parse_pdf_order(file_path):
                 
     extracted_items = []
     i = 0
-    seen_skus = set()
-    
     while i < len(lines):
         line = lines[i].strip()
-        
-        # Match serial number or SMRT line directly
-        sr_match = re.match(r'^(\d+)(?:\s+(.*))?$', line)
-        smrt_in_line = "SMRT" in line.upper()
-        
-        if sr_match or smrt_in_line:
-            sr_num = None
-            first_name_part = ""
-            if sr_match:
-                try:
-                    sr_num = int(sr_match.group(1))
-                    if sr_num > 150:
-                        i += 1
-                        continue
-                except ValueError:
-                    pass
-                first_name_part = sr_match.group(2) if sr_match.group(2) else ""
+        match_idx = re.match(r'^(\d+)(?:\s+(.*))?$', line)
+        if match_idx:
+            try:
+                sr_num = int(match_idx.group(1))
+                if sr_num > 100 or sr_num < 1:
+                    i += 1
+                    continue
+            except ValueError:
+                pass
                 
-            if first_name_part and any(k in first_name_part.upper() for k in ["REMARKS", "PENDING INVOICE", "FOC SCHEME", "INVOICE NO", "SUBTOTAL", "GRAND TOTAL"]):
+            first_name_part = match_idx.group(2) if match_idx.group(2) else ""
+            if any(k in first_name_part.upper() for k in ["REMARKS", "PENDING INVOICE", "FOC SCHEME", "INVOICE NO"]):
                 i += 1
                 continue
-                
-            # Find the SMRT line within next 6 lines
+            
+            # Find the SMRT line
             smrt_idx = -1
-            if smrt_in_line:
-                smrt_idx = i
-            else:
-                for k in range(i, min(i + 8, len(lines))):
-                    if "SMRT" in lines[k].upper():
-                        smrt_idx = k
-                        break
-                        
+            for k in range(i, min(i + 8, len(lines))):
+                if lines[k].strip().startswith("SMRT"):
+                    smrt_idx = k
+                    break
+                    
             if smrt_idx != -1:
                 # Reconstruct product name
                 name_parts = []
-                if first_name_part and not any(k in first_name_part.upper() for k in ["FOC SCHEME", "PENDING INVOICE"]):
-                    name_parts.append(first_name_part)
+                if first_name_part.strip() and not any(k in first_name_part.upper() for k in ["FOC SCHEME", "PENDING INVOICE"]):
+                    name_parts.append(first_name_part.strip())
                 for k in range(i + 1, smrt_idx):
                     part = lines[k].strip()
-                    if not "SMRT" in part.upper() and not part.isdigit() and "BILL TO" not in part and "ORDER INFO" not in part and "FOC SCHEME" not in part and "PENDING INVOICE" not in part:
+                    if not part.startswith("SMRT") and not part.isdigit() and "BILL TO" not in part and "ORDER INFO" not in part and "FOC SCHEME" not in part and "PENDING INVOICE" not in part:
                         name_parts.append(part)
-                        
-                name_raw = " ".join(name_parts)
-                name_clean = re.sub(r'^(.*?-\s*₹\d+\s*|\d+\s*)+', '', name_raw).strip()
+                # Clean up product name
+                name_parts_clean = []
+                for p in name_parts:
+                    p_clean = re.sub(r'^(.*?-\s*₹\d+\s*|\d+\s*)+', '', p).strip()
+                    if p_clean and not p_clean.isdigit():
+                        name_parts_clean.append(p_clean)
+                name = " ".join(name_parts_clean)
                 
-                # Gather SMRT line and surrounding numeric lines
+                # Collect SMRT line and trailing numeric/scheme lines
                 smrt_line = lines[smrt_idx].strip()
                 tokens = smrt_line.split()
                 
-                # Expand tokens by inspecting up to 4 lines forward
+                advance_i = smrt_idx + 1
                 for k_next in range(smrt_idx + 1, min(smrt_idx + 5, len(lines))):
                     nxt_str = lines[k_next].strip()
                     if nxt_str.isdigit() or "₹" in nxt_str or nxt_str.startswith("-"):
                         tokens.extend(nxt_str.split())
-                    elif len(tokens) <= 2 and ("₹" in nxt_str or any(c.isdigit() for c in nxt_str)):
+                        advance_i = k_next + 1
+                    elif len(tokens) == 1 and ("₹" in nxt_str or any(c.isdigit() for c in nxt_str)):
                         tokens.extend(nxt_str.split())
+                        advance_i = k_next + 1
                         
-                # Extract SMRT SKU token
-                sku = None
-                for t in tokens:
-                    if "SMRT" in t.upper():
-                        sku = re.sub(r'[^A-Za-z0-9-]', '', t.upper())
-                        break
-                if not sku:
-                    sku = tokens[0]
-                    
-                # Find MRP token index
                 mrp_idx = -1
                 for t_idx, token in enumerate(tokens):
                     if '₹' in token or token.startswith('₹'):
@@ -401,6 +385,7 @@ def parse_pdf_order(file_path):
                             break
                             
                 if mrp_idx != -1:
+                    sku = tokens[0]
                     mrp_str = tokens[mrp_idx].replace('₹', '').replace(',', '').strip()
                     try:
                         mrp = float(mrp_str)
@@ -420,19 +405,15 @@ def parse_pdf_order(file_path):
                         except ValueError:
                             pass
                             
-                    # Avoid duplicate extraction of same line
-                    item_key = (sku, mrp, qty, scheme, smrt_idx)
-                    if item_key not in seen_skus:
-                        seen_skus.add(item_key)
-                        extracted_items.append({
-                            'sku': sku,
-                            'name': name_clean,
-                            'mrp': mrp,
-                            'qty': qty,
-                            'scheme': scheme
-                        })
-                        i = smrt_idx + 1
-                        continue
+                    extracted_items.append({
+                        'name': name,
+                        'sku': sku,
+                        'mrp': mrp,
+                        'qty': qty,
+                        'scheme': scheme
+                    })
+                    i = smrt_idx + 1
+                    continue
         i += 1
     return party_name, extracted_items
 
@@ -1056,10 +1037,19 @@ def run_import(order_path, workbook_path):
     sh_order.Range("C4").Value = ""
     sh_order.Range("C5").Value = ""
     
-    last_row = sh_order.Cells(sh_order.Rows.Count, "A").End(-4162).Row # -4162 = xlUp
+    last_row = max(sh_order.Cells(sh_order.Rows.Count, "A").End(-4162).Row, sh_order.Cells(sh_order.Rows.Count, "B").End(-4162).Row, 150)
     if last_row >= 11:
-        sh_order.Range(f"A11:D{last_row}").ClearContents()
-        sh_order.Range(f"E11:M{last_row}").ClearContents()
+        clear_rng = sh_order.Range(f"A11:N{last_row}")
+        try:
+            clear_rng.UnMerge()
+        except Exception:
+            pass
+        clear_rng.ClearContents()
+        try:
+            clear_rng.Font.Bold = False
+            clear_rng.Interior.ColorIndex = -4142 # xlNone
+        except Exception:
+            pass
         
     # 4. Populate table and write formulas dynamically
     print("Writing new items and formulas...")
