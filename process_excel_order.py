@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.2.3"
+CURRENT_VERSION = "1.2.4"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1156,6 +1156,11 @@ def run_import(order_path, workbook_path):
         else:
             sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.05, INDEX(discount!C:C, MATCH($C$4, discount!A:A, 0)), IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, MATCH($C$4, discount!A:A, 0)), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, MATCH($C$4, discount!A:A, 0)), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, MATCH($C$4, discount!A:A, 0)), INDEX(discount!C:C, MATCH($C$4, discount!A:A, 0)))))), 0))'
             
+        try:
+            sh_order.Cells(r, 10).NumberFormat = "0.00%"
+        except Exception:
+            pass
+
         sh_order.Cells(r, 11).Value = f'=IF(ISBLANK(A{r}), "", ROUND(G{r}*C{r}*J{r},2))'
         try:
             sh_order.Cells(r, 12).Value = f'=IF(ISBLANK(A{r}), "", (G{r}*C{r})-K{r})'
