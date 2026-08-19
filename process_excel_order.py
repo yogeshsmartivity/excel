@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.2.7"
+CURRENT_VERSION = "1.2.8"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1072,8 +1072,11 @@ def run_import(order_path, workbook_path):
         
     # 4. Populate table and write formulas dynamically
     print("Writing new items and formulas...")
-    sh_order.Range("C4").Value = party_name
-    sh_order.Range("C5").Value = os.path.basename(order_path)
+    try:
+        sh_order.Range("C4").Value = party_name
+        sh_order.Range("C5").Value = os.path.basename(order_path)
+    except Exception:
+        pass
     
     # Load Party Discounts for smart matching
     sh_disc = wb.Sheets("discount")
