@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.2.4"
+CURRENT_VERSION = "1.2.5"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1213,85 +1213,103 @@ def run_import(order_path, workbook_path):
         try:
             # Unmerge top header area to clear overlapping cells
             try:
-                sh_order.Range("A1:N6").UnMerge()
+                sh_order.Range("A1:N9").UnMerge()
+                sh_order.Range("A1:N9").ClearContents()
+                sh_order.Range("A1:N9").ClearFormats()
+                sh_order.Range("A1:N9").Interior.ColorIndex = -4142
+                sh_order.Range("A1:N9").Borders.LineStyle = -4142
             except Exception:
                 pass
                 
-            # Header Banner
-            sh_order.Range("A1:N2").Merge()
+            # Header Banner (Row 1-2)
+            sh_order.Range("A1:M2").Merge()
             sh_order.Range("A1").Value = f"SMARTIVITY AUTOMATION ENGINE — {active_sheet_name.upper()}"
             sh_order.Range("A1").Font.Name = "Segoe UI"
-            sh_order.Range("A1").Font.Size = 14
+            sh_order.Range("A1").Font.Size = 13
             sh_order.Range("A1").Font.Bold = True
             sh_order.Range("A1").Font.Color = 16777215 # White
-            sh_order.Range("A1").Interior.Color = 3944734 # Deep Indigo #1E293B
+            sh_order.Range("A1").Interior.Color = 2760719 # Dark Slate #0F172A
             sh_order.Range("A1").HorizontalAlignment = -4108 # xlCenter
             sh_order.Range("A1").VerticalAlignment = -4108
 
-            # Card 1: Customer Party Name (Col B-D)
-            sh_order.Range("B4:D4").Merge()
-            sh_order.Range("B4").Value = "CUSTOMER / PARTY"
-            sh_order.Range("B4").Font.Size = 9
-            sh_order.Range("B4").Font.Bold = True
-            sh_order.Range("B4").Font.Color = 8421504
-            sh_order.Range("B5:D5").Merge()
-            sh_order.Range("B5").Value = party_name
-            sh_order.Range("B5").Font.Size = 11
-            sh_order.Range("B5").Font.Bold = True
-            sh_order.Range("B4:D5").Interior.Color = 16316664 # Soft Slate #F8FAFC
-            sh_order.Range("B4:D5").Borders.LineStyle = 1
+            # Card 1: Party Name (A4:C5)
+            sh_order.Range("A4:C4").Merge()
+            sh_order.Range("A4").Value = "CUSTOMER / PARTY"
+            sh_order.Range("A4").Font.Size = 8
+            sh_order.Range("A4").Font.Bold = True
+            sh_order.Range("A4").Font.Color = 8421504
+            sh_order.Range("A4").HorizontalAlignment = -4108
+            sh_order.Range("A5:C5").Merge()
+            sh_order.Range("A5").Value = party_name
+            sh_order.Range("A5").Font.Size = 11
+            sh_order.Range("A5").Font.Bold = True
+            sh_order.Range("A5").HorizontalAlignment = -4108
+            sh_order.Range("A4:C5").Interior.Color = 16774895 # Soft Blue Tint #EFF6FF
+            sh_order.Range("A4:C5").Borders.Color = 16700543 # Soft Blue Border #BFDBFE
 
-            # Card 2: Total SKUs (Col F-G)
+            # Card 2: Total SKUs (D4:E5)
+            sh_order.Range("D4:E4").Merge()
+            sh_order.Range("D4").Value = "TOTAL SKUs"
+            sh_order.Range("D4").Font.Size = 8
+            sh_order.Range("D4").Font.Bold = True
+            sh_order.Range("D4").Font.Color = 8421504
+            sh_order.Range("D4").HorizontalAlignment = -4108
+            sh_order.Range("D5:E5").Merge()
+            sh_order.Range("D5").Value = f"=COUNTA(A11:A{last_item_row})"
+            sh_order.Range("D5").Font.Size = 12
+            sh_order.Range("D5").Font.Bold = True
+            sh_order.Range("D5").HorizontalAlignment = -4108
+            sh_order.Range("D4:E5").Interior.Color = 16316664 # Soft Slate Tint #F8FAFC
+            sh_order.Range("D4:E5").Borders.Color = 13749969 # Slate Border #CBD5E1
+
+            # Card 3: Total Quantity (F4:G5)
             sh_order.Range("F4:G4").Merge()
-            sh_order.Range("F4").Value = "TOTAL SKUs"
-            sh_order.Range("F4").Font.Size = 9
+            sh_order.Range("F4").Value = "TOTAL QUANTITY"
+            sh_order.Range("F4").Font.Size = 8
             sh_order.Range("F4").Font.Bold = True
             sh_order.Range("F4").Font.Color = 8421504
+            sh_order.Range("F4").HorizontalAlignment = -4108
             sh_order.Range("F5:G5").Merge()
-            sh_order.Range("F5").Value = f"=COUNTA(A11:A{last_item_row})"
+            sh_order.Range("F5").Value = f"=C{tot_row}"
             sh_order.Range("F5").Font.Size = 12
             sh_order.Range("F5").Font.Bold = True
+            sh_order.Range("F5").HorizontalAlignment = -4108
             sh_order.Range("F4:G5").Interior.Color = 16316664
-            sh_order.Range("F4:G5").Borders.LineStyle = 1
+            sh_order.Range("F4:G5").Borders.Color = 13749969
 
-            # Card 3: Total Quantity (Col I-J)
-            sh_order.Range("I4:J4").Merge()
-            sh_order.Range("I4").Value = "TOTAL QUANTITY"
-            sh_order.Range("I4").Font.Size = 9
-            sh_order.Range("I4").Font.Bold = True
-            sh_order.Range("I4").Font.Color = 8421504
-            sh_order.Range("I5:J5").Merge()
-            sh_order.Range("I5").Value = f"=C{tot_row}"
-            sh_order.Range("I5").Font.Size = 12
-            sh_order.Range("I5").Font.Bold = True
-            sh_order.Range("I4:J5").Interior.Color = 16316664
-            sh_order.Range("I4:J5").Borders.LineStyle = 1
+            # Card 4: Taxable Value (H4:J5)
+            sh_order.Range("H4:J4").Merge()
+            sh_order.Range("H4").Value = "TAXABLE VALUE"
+            sh_order.Range("H4").Font.Size = 8
+            sh_order.Range("H4").Font.Bold = True
+            sh_order.Range("H4").Font.Color = 8421504
+            sh_order.Range("H4").HorizontalAlignment = -4108
+            sh_order.Range("H5:J5").Merge()
+            sh_order.Range("H5").Value = f"=L{tot_row}"
+            sh_order.Range("H5").Font.Size = 12
+            sh_order.Range("H5").Font.Bold = True
+            sh_order.Range("H5").Font.Color = 5732356 # Emerald Green #047857
+            sh_order.Range("H5").NumberFormat = "₹#,##0.00"
+            sh_order.Range("H5").HorizontalAlignment = -4108
+            sh_order.Range("H4:J5").Interior.Color = 16121324 # Soft Green Tint #ECFDF5
+            sh_order.Range("H4:J5").Borders.Color = 11006887 # Green Border #A7F3D0
 
-            # Card 4: Taxable Value (Col L-M)
-            sh_order.Range("L4:M4").Merge()
-            sh_order.Range("L4").Value = "TAXABLE VALUE"
-            sh_order.Range("L4").Font.Size = 9
-            sh_order.Range("L4").Font.Bold = True
-            sh_order.Range("L4").Font.Color = 8421504
-            sh_order.Range("L5:M5").Merge()
-            sh_order.Range("L5").Value = f"=L{tot_row}"
-            sh_order.Range("L5").Font.Size = 12
-            sh_order.Range("L5").Font.Bold = True
-            sh_order.Range("L5").NumberFormat = "₹#,##0.00"
-            sh_order.Range("L4:M5").Interior.Color = 16316664
-            sh_order.Range("L4:M5").Borders.LineStyle = 1
-
-            # Card 5: Total Discount Amount (Col N)
-            sh_order.Range("N4").Value = "TOTAL DISCOUNT"
-            sh_order.Range("N4").Font.Size = 9
-            sh_order.Range("N4").Font.Bold = True
-            sh_order.Range("N4").Font.Color = 8421504
-            sh_order.Range("N5").Value = f"=K{tot_row}"
-            sh_order.Range("N5").Font.Size = 12
-            sh_order.Range("N5").Font.Bold = True
-            sh_order.Range("N5").NumberFormat = "₹#,##0.00"
-            sh_order.Range("N4:N5").Interior.Color = 16316664
-            sh_order.Range("N4:N5").Borders.LineStyle = 1
+            # Card 5: Total Discount (K4:M5)
+            sh_order.Range("K4:M4").Merge()
+            sh_order.Range("K4").Value = "TOTAL DISCOUNT"
+            sh_order.Range("K4").Font.Size = 8
+            sh_order.Range("K4").Font.Bold = True
+            sh_order.Range("K4").Font.Color = 8421504
+            sh_order.Range("K4").HorizontalAlignment = -4108
+            sh_order.Range("K5:M5").Merge()
+            sh_order.Range("K5").Value = f"=K{tot_row}"
+            sh_order.Range("K5").Font.Size = 12
+            sh_order.Range("K5").Font.Bold = True
+            sh_order.Range("K5").Font.Color = 611636 # Amber #B45309
+            sh_order.Range("K5").NumberFormat = "₹#,##0.00"
+            sh_order.Range("K5").HorizontalAlignment = -4108
+            sh_order.Range("K4:M5").Interior.Color = 15727615 # Soft Amber Tint #FFFBEB
+            sh_order.Range("K4:M5").Borders.Color = 9300195 # Amber Border #FDE68A
         except Exception as kpi_err:
             print(f"Note formatting KPI cards: {kpi_err}")
         
