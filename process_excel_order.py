@@ -1106,6 +1106,7 @@ def run_import(order_path, workbook_path):
         if active_sheet_name == "Firstcry Order":
             base_cost = item.get('base_cost', 0.0)
             sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), 0, IF(G{r}=0, 0, ROUND(1 - ({base_cost} / G{r}), 5)))'
+        else:
             sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.05, INDEX(discount!C:C, MATCH($C$4, discount!A:A, 0)), IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, MATCH($C$4, discount!A:A, 0)), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, MATCH($C$4, discount!A:A, 0)), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, MATCH($C$4, discount!A:A, 0)), INDEX(discount!C:C, MATCH($C$4, discount!A:A, 0)))))), 0))'
             
         sh_order.Cells(r, 11).Value = f'=IF(ISBLANK(A{r}), "", ROUND(G{r}*C{r}*J{r},2))'
