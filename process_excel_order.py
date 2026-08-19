@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.2.1"
+CURRENT_VERSION = "1.2.2"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -659,12 +659,20 @@ def parse_excel_order(file_path):
 def get_active_workbook(workbook_path):
     excel = None
     try:
-        excel = win32com.client.GetObject(Class="Excel.Application")
+        excel = win32com.client.GetActiveObject("Excel.Application")
     except Exception:
-        print("Excel is not running. Launching Excel Application...")
-        excel = win32com.client.Dispatch("Excel.Application")
-        excel.Visible = True
-        
+        try:
+            excel = win32com.client.Dispatch("Excel.Application")
+        except Exception:
+            pass
+
+    if excel is None:
+        try:
+            excel = win32com.client.GetObject(Class="Excel.Application")
+        except Exception:
+            excel = win32com.client.Dispatch("Excel.Application")
+            
+    excel.Visible = True
     try:
         excel.DisplayAlerts = False
     except Exception:
@@ -672,10 +680,19 @@ def get_active_workbook(workbook_path):
         
     wb = None
     target_name = os.path.basename(workbook_path).lower()
-    for w in excel.Workbooks:
-        if w.Name.lower() == target_name or w.FullName.lower() == workbook_path.lower():
-            wb = w
-            break
+    
+    try:
+        wbs = getattr(excel, "Workbooks", None)
+        if wbs is not None:
+            for w in wbs:
+                try:
+                    if w.Name.lower() == target_name or w.FullName.lower() == workbook_path.lower():
+                        wb = w
+                        break
+                except Exception:
+                    pass
+    except Exception as err:
+        print(f"Warning iterating workbooks: {err}")
             
     if not wb:
         if os.path.exists(workbook_path):
