@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.2.0"
+CURRENT_VERSION = "1.2.1"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1176,6 +1176,13 @@ def run_import(order_path, workbook_path):
         else:
             sh_order.Cells(r, 13).Value = f'=IF(ISBLANK(A{r}), "", IF(F{r}="", "⚠️ SKU not found in Price List", IF(ROUND(E{r},2)<>ROUND(G{r},2), "⚠️ Price Mismatch! (PO: " & TEXT(E{r},"#,##0.00") & ", List: " & TEXT(G{r},"#,##0.00") & ")", "✅ OK")))'
         
+        # Apply subtle Zebra-striping to table rows for clean readability
+        if r % 2 == 0:
+            try:
+                sh_order.Range(f"A{r}:M{r}").Interior.Color = 16316664 # Soft Light Slate #F8FAFC
+            except Exception:
+                pass
+        
     # 5. Write GRAND TOTAL summary row at the bottom of the table
     if len(items) > 0:
         last_item_row = 10 + len(items)
@@ -1196,6 +1203,61 @@ def run_import(order_path, workbook_path):
         tot_range.Font.Bold = True
         tot_range.Interior.Color = 14803425 # Light Slate #CBD5E1
         tot_range.Borders.Weight = 3 # Thick border
+
+        # 6. Format Top Live KPI Summary Cards (Rows 4-5)
+        try:
+            # Card 1: Party Name
+            sh_order.Range("B4:C4").Merge()
+            sh_order.Range("B4").Value = "CUSTOMER / PARTY"
+            sh_order.Range("B4").Font.Size = 9
+            sh_order.Range("B4").Font.Bold = True
+            sh_order.Range("B4").Font.Color = 8421504
+            
+            # Card 2: Total SKUs
+            sh_order.Range("E4:F4").Merge()
+            sh_order.Range("E4").Value = "TOTAL SKUs"
+            sh_order.Range("E4").Font.Size = 9
+            sh_order.Range("E4").Font.Bold = True
+            sh_order.Range("E4").Font.Color = 8421504
+            sh_order.Range("E5:F5").Merge()
+            sh_order.Range("E5").Value = f"=COUNTA(A11:A{last_item_row})"
+            sh_order.Range("E5").Font.Size = 12
+            sh_order.Range("E5").Font.Bold = True
+
+            # Card 3: Total Quantity
+            sh_order.Range("H4:I4").Merge()
+            sh_order.Range("H4").Value = "TOTAL QUANTITY"
+            sh_order.Range("H4").Font.Size = 9
+            sh_order.Range("H4").Font.Bold = True
+            sh_order.Range("H4").Font.Color = 8421504
+            sh_order.Range("H5:I5").Merge()
+            sh_order.Range("H5").Value = f"=C{tot_row}"
+            sh_order.Range("H5").Font.Size = 12
+            sh_order.Range("H5").Font.Bold = True
+
+            # Card 4: Taxable Value
+            sh_order.Range("K4:L4").Merge()
+            sh_order.Range("K4").Value = "TAXABLE VALUE"
+            sh_order.Range("K4").Font.Size = 9
+            sh_order.Range("K4").Font.Bold = True
+            sh_order.Range("K4").Font.Color = 8421504
+            sh_order.Range("K5:L5").Merge()
+            sh_order.Range("K5").Value = f"=L{tot_row}"
+            sh_order.Range("K5").Font.Size = 12
+            sh_order.Range("K5").Font.Bold = True
+            sh_order.Range("K5").NumberFormat = "₹#,##0.00"
+
+            # Card 5: Total Discount Amount
+            sh_order.Range("M4").Value = "TOTAL DISCOUNT"
+            sh_order.Range("M4").Font.Size = 9
+            sh_order.Range("M4").Font.Bold = True
+            sh_order.Range("M4").Font.Color = 8421504
+            sh_order.Range("M5").Value = f"=K{tot_row}"
+            sh_order.Range("M5").Font.Size = 12
+            sh_order.Range("M5").Font.Bold = True
+            sh_order.Range("M5").NumberFormat = "₹#,##0.00"
+        except Exception as kpi_err:
+            print(f"Note formatting KPI cards: {kpi_err}")
         
     try:
         excel.Calculate()
