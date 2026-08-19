@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.2.6"
+CURRENT_VERSION = "1.2.7"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1184,9 +1184,43 @@ def run_import(order_path, workbook_path):
         # Apply subtle Zebra-striping to table rows for clean readability
         if r % 2 == 0:
             try:
-                sh_order.Range(f"A{r}:M{r}").Interior.Color = 16316664 # Soft Light Slate #F8FAFC
+                sh_order.Range(f"A{r}:L{r}").Interior.Color = 16316664 # Soft Light Slate #F8FAFC
             except Exception:
                 pass
+
+    # 4.5 Apply Vibrant Conditional Formatting to Status Column M (M11:M200)
+    try:
+        m_range = sh_order.Range("M11:M200")
+        try:
+            m_range.FormatConditions.Delete()
+        except Exception:
+            pass
+            
+        # Rule 1: OK (Light Green fill #DCFCE7, Dark Green text #15803D)
+        fc1 = m_range.FormatConditions.Add(Type=1, Operator=3, Formula1="=\"✅ OK\"")
+        fc1.Interior.Color = 15199964
+        fc1.Font.Color = 4030485
+        fc1.Font.Bold = True
+        
+        # Rule 2: Auto-matched / Auto-Corrected (Light Blue fill #DBEAFE, Dark Blue text #1D4ED8)
+        fc2 = m_range.FormatConditions.Add(Type=1, Operator=3, Formula1="=\"✅ Auto-matched SKU\"")
+        fc2.Interior.Color = 16706267
+        fc2.Font.Color = 14175773
+        fc2.Font.Bold = True
+
+        # Rule 3: Price Mismatch (Light Amber fill #FEF3C7, Dark Amber text #B45309)
+        fc3 = m_range.FormatConditions.Add(Type=1, Operator=3, Formula1="=\"⚠️ Price Mismatch!\"")
+        fc3.Interior.Color = 13104126
+        fc3.Font.Color = 611636
+        fc3.Font.Bold = True
+
+        # Rule 4: SKU not found (Light Red fill #FEE2E2, Dark Red text #B91C1C)
+        fc4 = m_range.FormatConditions.Add(Type=1, Operator=3, Formula1="=\"⚠️ SKU not found in Price List\"")
+        fc4.Interior.Color = 14869246
+        fc4.Font.Color = 1841337
+        fc4.Font.Bold = True
+    except Exception as fc_err:
+        print(f"Note applying Status Column rules: {fc_err}")
         
     # 5. Write GRAND TOTAL summary row at the bottom of the table
     if len(items) > 0:
