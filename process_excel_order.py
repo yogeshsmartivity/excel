@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.1.7"
+CURRENT_VERSION = "1.1.8"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -946,7 +946,6 @@ def run_import(order_path, workbook_path):
     # Load Price list references for Fuzzy SKU Match and Auto Price Correction
     import difflib
     wb_dir = os.path.dirname(os.path.abspath(workbook_path))
-    sync_master_price_list(wb, wb_dir)
     
     print("Loading Price list references for smart matching and correction...")
     sh_price = wb.Sheets("Price list")
