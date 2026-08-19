@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.1.9"
+CURRENT_VERSION = "1.2.0"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -301,13 +301,26 @@ def parse_pdf_with_gemini(file_path, api_key):
     return party_name, formatted_items
 
 def parse_pdf_order(file_path):
-    print(f"Parsing PDF Order: {os.path.basename(file_path)}...")
+    print(f"Parsing PDF Order (Multi-Page Heavy PDF Auto-Stitcher): {os.path.basename(file_path)}...")
     reader = pypdf.PdfReader(file_path)
     lines = []
     for page in reader.pages:
         text = page.extract_text()
         if text:
-            lines.extend(text.split('\n'))
+            for l in text.split('\n'):
+                line_str = l.strip()
+                if not line_str:
+                    continue
+                # 1. Erase timestamps (e.g., "8/18/26, 9:48 AM")
+                if re.search(r'\d{1,2}/\d{1,2}/\d{2,4},\s*\d{1,2}:\d{2}', line_str):
+                    continue
+                # 2. Erase repeated document headers
+                if "SMARTIVITY LABS" in line_str.upper() and ("ORDER" in line_str.upper() or "PAGE" in line_str.upper()):
+                    continue
+                # 3. Erase Page numbers (even if formatted as "Page 1 of 5", "1/5", "Page 2")
+                if re.search(r'\bPAGE\s*\d+(\s*OF\s*\d+)?\b', line_str, re.IGNORECASE) or re.search(r'^\s*\d+\s*/\s*\d+\s*$', line_str):
+                    continue
+                lines.append(line_str)
             
     party_name = "UNKNOWN PARTY"
     for idx, l in enumerate(lines):
