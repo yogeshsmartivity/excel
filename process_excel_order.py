@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.1.8"
+CURRENT_VERSION = "1.1.9"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1086,6 +1086,41 @@ def run_import(order_path, workbook_path):
         if pk in clean_party_upper or clean_party_upper in pk:
             matched_party_disc = pd_dict
             break
+
+    # If new party detected without discounts, prompt user with top-most popup
+    if matched_party_disc is None and clean_party_upper and clean_party_upper not in ["NONE", "UNKNOWN PARTY", ""]:
+        try:
+            import tkinter as tk
+            from tkinter import simpledialog
+            
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            
+            prompt_title = "New Party Discount Alert"
+            prompt_msg_5 = f"New Party Detected: '{party_name}'!\n\nEnter Discount % for 5% Tax items (e.g. 47.62 for 47.62%):\n(Leave 0 or cancel if no discount)"
+            disc_5_input = simpledialog.askfloat(prompt_title, prompt_msg_5, parent=root, minvalue=0.0, maxvalue=100.0)
+            
+            prompt_msg_18 = f"Enter Discount % for 18% Tax items (e.g. 53.39 for 53.39%):\n(Leave 0 or cancel if no discount)"
+            disc_18_input = simpledialog.askfloat(prompt_title, prompt_msg_18, parent=root, minvalue=0.0, maxvalue=100.0)
+            
+            root.destroy()
+            
+            val_5 = (disc_5_input / 100.0) if disc_5_input else 0.0
+            val_18 = (disc_18_input / 100.0) if disc_18_input else 0.0
+            
+            if val_5 > 0 or val_18 > 0:
+                new_disc_row = last_disc_row + 1
+                sh_disc.Cells(new_disc_row, 1).Value = party_name.upper()
+                sh_disc.Cells(new_disc_row, 3).Value = val_5
+                sh_disc.Cells(new_disc_row, 4).Value = 0
+                sh_disc.Cells(new_disc_row, 5).Value = val_18
+                sh_disc.Cells(new_disc_row, 6).Value = 0
+                
+                matched_party_disc = {0.05: val_5, 0.12: 0.0, 0.18: val_18, 0.28: 0.0}
+                print(f"Added new party '{party_name}' to discount sheet with 5%={val_5*100:.2f}%, 18%={val_18*100:.2f}%")
+        except Exception as pop_err:
+            print(f"Note popping new party discount dialog: {pop_err}")
 
     for idx, item in enumerate(items):
         r = 11 + idx
