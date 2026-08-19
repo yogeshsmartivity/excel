@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.2.5"
+CURRENT_VERSION = "1.2.6"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1310,6 +1310,19 @@ def run_import(order_path, workbook_path):
             sh_order.Range("K5").HorizontalAlignment = -4108
             sh_order.Range("K4:M5").Interior.Color = 15727615 # Soft Amber Tint #FFFBEB
             sh_order.Range("K4:M5").Borders.Color = 9300195 # Amber Border #FDE68A
+
+            # Auto-align shape action buttons cleanly to Row 7 (Below KPI Cards)
+            try:
+                row7_top = sh_order.Range("A7").Top + 2
+                for shape in sh_order.Shapes:
+                    try:
+                        txt = shape.TextFrame.Characters().Text.upper()
+                        if any(k in txt for k in ["IMPORT", "FILL", "TEMPLATE", "CLEAR", "PUSH", "MASTERS", "UPDATE"]):
+                            shape.Top = row7_top
+                    except Exception:
+                        pass
+            except Exception as shape_err:
+                print(f"Note auto-aligning buttons to Row 7: {shape_err}")
         except Exception as kpi_err:
             print(f"Note formatting KPI cards: {kpi_err}")
         
