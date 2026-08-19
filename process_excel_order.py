@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.2.2"
+CURRENT_VERSION = "1.2.3"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -659,20 +659,12 @@ def parse_excel_order(file_path):
 def get_active_workbook(workbook_path):
     excel = None
     try:
-        excel = win32com.client.GetActiveObject("Excel.Application")
+        excel = win32com.client.GetObject(Class="Excel.Application")
     except Exception:
-        try:
-            excel = win32com.client.Dispatch("Excel.Application")
-        except Exception:
-            pass
-
-    if excel is None:
-        try:
-            excel = win32com.client.GetObject(Class="Excel.Application")
-        except Exception:
-            excel = win32com.client.Dispatch("Excel.Application")
-            
-    excel.Visible = True
+        print("Excel is not running. Launching Excel Application...")
+        excel = win32com.client.Dispatch("Excel.Application")
+        excel.Visible = True
+        
     try:
         excel.DisplayAlerts = False
     except Exception:
@@ -680,19 +672,10 @@ def get_active_workbook(workbook_path):
         
     wb = None
     target_name = os.path.basename(workbook_path).lower()
-    
-    try:
-        wbs = getattr(excel, "Workbooks", None)
-        if wbs is not None:
-            for w in wbs:
-                try:
-                    if w.Name.lower() == target_name or w.FullName.lower() == workbook_path.lower():
-                        wb = w
-                        break
-                except Exception:
-                    pass
-    except Exception as err:
-        print(f"Warning iterating workbooks: {err}")
+    for w in excel.Workbooks:
+        if w.Name.lower() == target_name or w.FullName.lower() == workbook_path.lower():
+            wb = w
+            break
             
     if not wb:
         if os.path.exists(workbook_path):
@@ -1223,56 +1206,87 @@ def run_import(order_path, workbook_path):
 
         # 6. Format Top Live KPI Summary Cards (Rows 4-5)
         try:
-            # Card 1: Party Name
-            sh_order.Range("B4:C4").Merge()
+            # Unmerge top header area to clear overlapping cells
+            try:
+                sh_order.Range("A1:N6").UnMerge()
+            except Exception:
+                pass
+                
+            # Header Banner
+            sh_order.Range("A1:N2").Merge()
+            sh_order.Range("A1").Value = f"SMARTIVITY AUTOMATION ENGINE — {active_sheet_name.upper()}"
+            sh_order.Range("A1").Font.Name = "Segoe UI"
+            sh_order.Range("A1").Font.Size = 14
+            sh_order.Range("A1").Font.Bold = True
+            sh_order.Range("A1").Font.Color = 16777215 # White
+            sh_order.Range("A1").Interior.Color = 3944734 # Deep Indigo #1E293B
+            sh_order.Range("A1").HorizontalAlignment = -4108 # xlCenter
+            sh_order.Range("A1").VerticalAlignment = -4108
+
+            # Card 1: Customer Party Name (Col B-D)
+            sh_order.Range("B4:D4").Merge()
             sh_order.Range("B4").Value = "CUSTOMER / PARTY"
             sh_order.Range("B4").Font.Size = 9
             sh_order.Range("B4").Font.Bold = True
             sh_order.Range("B4").Font.Color = 8421504
-            
-            # Card 2: Total SKUs
-            sh_order.Range("E4:F4").Merge()
-            sh_order.Range("E4").Value = "TOTAL SKUs"
-            sh_order.Range("E4").Font.Size = 9
-            sh_order.Range("E4").Font.Bold = True
-            sh_order.Range("E4").Font.Color = 8421504
-            sh_order.Range("E5:F5").Merge()
-            sh_order.Range("E5").Value = f"=COUNTA(A11:A{last_item_row})"
-            sh_order.Range("E5").Font.Size = 12
-            sh_order.Range("E5").Font.Bold = True
+            sh_order.Range("B5:D5").Merge()
+            sh_order.Range("B5").Value = party_name
+            sh_order.Range("B5").Font.Size = 11
+            sh_order.Range("B5").Font.Bold = True
+            sh_order.Range("B4:D5").Interior.Color = 16316664 # Soft Slate #F8FAFC
+            sh_order.Range("B4:D5").Borders.LineStyle = 1
 
-            # Card 3: Total Quantity
-            sh_order.Range("H4:I4").Merge()
-            sh_order.Range("H4").Value = "TOTAL QUANTITY"
-            sh_order.Range("H4").Font.Size = 9
-            sh_order.Range("H4").Font.Bold = True
-            sh_order.Range("H4").Font.Color = 8421504
-            sh_order.Range("H5:I5").Merge()
-            sh_order.Range("H5").Value = f"=C{tot_row}"
-            sh_order.Range("H5").Font.Size = 12
-            sh_order.Range("H5").Font.Bold = True
+            # Card 2: Total SKUs (Col F-G)
+            sh_order.Range("F4:G4").Merge()
+            sh_order.Range("F4").Value = "TOTAL SKUs"
+            sh_order.Range("F4").Font.Size = 9
+            sh_order.Range("F4").Font.Bold = True
+            sh_order.Range("F4").Font.Color = 8421504
+            sh_order.Range("F5:G5").Merge()
+            sh_order.Range("F5").Value = f"=COUNTA(A11:A{last_item_row})"
+            sh_order.Range("F5").Font.Size = 12
+            sh_order.Range("F5").Font.Bold = True
+            sh_order.Range("F4:G5").Interior.Color = 16316664
+            sh_order.Range("F4:G5").Borders.LineStyle = 1
 
-            # Card 4: Taxable Value
-            sh_order.Range("K4:L4").Merge()
-            sh_order.Range("K4").Value = "TAXABLE VALUE"
-            sh_order.Range("K4").Font.Size = 9
-            sh_order.Range("K4").Font.Bold = True
-            sh_order.Range("K4").Font.Color = 8421504
-            sh_order.Range("K5:L5").Merge()
-            sh_order.Range("K5").Value = f"=L{tot_row}"
-            sh_order.Range("K5").Font.Size = 12
-            sh_order.Range("K5").Font.Bold = True
-            sh_order.Range("K5").NumberFormat = "₹#,##0.00"
+            # Card 3: Total Quantity (Col I-J)
+            sh_order.Range("I4:J4").Merge()
+            sh_order.Range("I4").Value = "TOTAL QUANTITY"
+            sh_order.Range("I4").Font.Size = 9
+            sh_order.Range("I4").Font.Bold = True
+            sh_order.Range("I4").Font.Color = 8421504
+            sh_order.Range("I5:J5").Merge()
+            sh_order.Range("I5").Value = f"=C{tot_row}"
+            sh_order.Range("I5").Font.Size = 12
+            sh_order.Range("I5").Font.Bold = True
+            sh_order.Range("I4:J5").Interior.Color = 16316664
+            sh_order.Range("I4:J5").Borders.LineStyle = 1
 
-            # Card 5: Total Discount Amount
-            sh_order.Range("M4").Value = "TOTAL DISCOUNT"
-            sh_order.Range("M4").Font.Size = 9
-            sh_order.Range("M4").Font.Bold = True
-            sh_order.Range("M4").Font.Color = 8421504
-            sh_order.Range("M5").Value = f"=K{tot_row}"
-            sh_order.Range("M5").Font.Size = 12
-            sh_order.Range("M5").Font.Bold = True
-            sh_order.Range("M5").NumberFormat = "₹#,##0.00"
+            # Card 4: Taxable Value (Col L-M)
+            sh_order.Range("L4:M4").Merge()
+            sh_order.Range("L4").Value = "TAXABLE VALUE"
+            sh_order.Range("L4").Font.Size = 9
+            sh_order.Range("L4").Font.Bold = True
+            sh_order.Range("L4").Font.Color = 8421504
+            sh_order.Range("L5:M5").Merge()
+            sh_order.Range("L5").Value = f"=L{tot_row}"
+            sh_order.Range("L5").Font.Size = 12
+            sh_order.Range("L5").Font.Bold = True
+            sh_order.Range("L5").NumberFormat = "₹#,##0.00"
+            sh_order.Range("L4:M5").Interior.Color = 16316664
+            sh_order.Range("L4:M5").Borders.LineStyle = 1
+
+            # Card 5: Total Discount Amount (Col N)
+            sh_order.Range("N4").Value = "TOTAL DISCOUNT"
+            sh_order.Range("N4").Font.Size = 9
+            sh_order.Range("N4").Font.Bold = True
+            sh_order.Range("N4").Font.Color = 8421504
+            sh_order.Range("N5").Value = f"=K{tot_row}"
+            sh_order.Range("N5").Font.Size = 12
+            sh_order.Range("N5").Font.Bold = True
+            sh_order.Range("N5").NumberFormat = "₹#,##0.00"
+            sh_order.Range("N4:N5").Interior.Color = 16316664
+            sh_order.Range("N4:N5").Borders.LineStyle = 1
         except Exception as kpi_err:
             print(f"Note formatting KPI cards: {kpi_err}")
         
