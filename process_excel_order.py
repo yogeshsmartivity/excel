@@ -187,18 +187,26 @@ def sync_master_price_list(wb, wb_dir):
             print(f"Warning syncing discount list: {disc_err}")
 
 def parse_pdf_with_gemini(file_path, api_key):
-    import google.generativeai as genai
+    import warnings
+    warnings.filterwarnings("ignore")
     import json
     
     print("Initializing Gemini API for AI-powered OCR...")
-    genai.configure(api_key=api_key)
+    try:
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        use_new_sdk = True
+    except ImportError:
+        import google.generativeai as genai_legacy
+        genai_legacy.configure(api_key=api_key)
+        use_new_sdk = False
     
     # Upload the PDF file to Gemini API
     print(f"Uploading '{os.path.basename(file_path)}' to Gemini...")
-    uploaded_file = genai.upload_file(file_path)
-    
-    # Use gemini-1.5-flash which is fast, free-tier supported, and natively handles PDF files.
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    if use_new_sdk:
+        uploaded_file = client.files.upload(file=file_path)
+    else:
+        uploaded_file = genai_legacy.upload_file(file_path)
     
     is_firstcry = "firstcry" in os.path.basename(file_path).lower()
     
@@ -260,13 +268,22 @@ def parse_pdf_with_gemini(file_path, api_key):
         """
     
     print("Extracting fields using Gemini AI...")
-    response = model.generate_content([uploaded_file, prompt])
-    
-    # Clean up the file from Gemini
-    try:
-        uploaded_file.delete()
-    except Exception as del_err:
-        print(f"VBA API Clean-up Warning: {del_err}")
+    if use_new_sdk:
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=[uploaded_file, prompt]
+        )
+        try:
+            client.files.delete(name=uploaded_file.name)
+        except Exception as del_err:
+            print(f"Gemini API Clean-up Warning: {del_err}")
+    else:
+        model = genai_legacy.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content([uploaded_file, prompt])
+        try:
+            uploaded_file.delete()
+        except Exception as del_err:
+            print(f"Gemini API Clean-up Warning: {del_err}")
         
     text = response.text.strip()
     # Clean output backticks if any
@@ -409,12 +426,12 @@ def parse_pdf_order(file_path):
                     scheme = 0
                     if mrp_idx + 1 < len(tokens):
                         try:
-                            qty = int(tokens[mrp_idx + 1])
+                            qty = int(float(tokens[mrp_idx + 1]))
                         except ValueError:
                             pass
                     if mrp_idx + 2 < len(tokens):
                         try:
-                            scheme = int(tokens[mrp_idx + 2])
+                            scheme = int(float(tokens[mrp_idx + 2]))
                         except ValueError:
                             pass
                             
@@ -1157,7 +1174,7 @@ def run_import(order_path, workbook_path):
             base_cost = item.get('base_cost', 0.0)
             sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), 0, IF(G{r}=0, 0, ROUND(1 - ({base_cost} / G{r}), 5)))'
         else:
-            sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.05, INDEX(discount!C:C, MATCH($C$4, discount!A:A, 0)), IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, MATCH($C$4, discount!A:A, 0)), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, MATCH($C$4, discount!A:A, 0)), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, MATCH($C$4, discount!A:A, 0)), INDEX(discount!C:C, MATCH($C$4, discount!A:A, 0)))))), 0))'
+            sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.05, INDEX(discount!C:C, MATCH($A$5, discount!A:A, 0)), IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, MATCH($A$5, discount!A:A, 0)), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, MATCH($A$5, discount!A:A, 0)), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, MATCH($A$5, discount!A:A, 0)), INDEX(discount!C:C, MATCH($A$5, discount!A:A, 0)))))), 0))'
             
         try:
             sh_order.Cells(r, 10).NumberFormat = "0.00%"
@@ -1200,25 +1217,25 @@ def run_import(order_path, workbook_path):
             pass
             
         # Rule 1: OK (Light Green fill #DCFCE7, Dark Green text #15803D)
-        fc1 = m_range.FormatConditions.Add(Type=1, Operator=3, Formula1="=\"✅ OK\"")
+        fc1 = m_range.FormatConditions.Add(Type=2, Formula1="=ISNUMBER(SEARCH(\"OK\", M11))")
         fc1.Interior.Color = 15199964
         fc1.Font.Color = 4030485
         fc1.Font.Bold = True
         
         # Rule 2: Auto-matched / Auto-Corrected (Light Blue fill #DBEAFE, Dark Blue text #1D4ED8)
-        fc2 = m_range.FormatConditions.Add(Type=1, Operator=3, Formula1="=\"✅ Auto-matched SKU\"")
+        fc2 = m_range.FormatConditions.Add(Type=2, Formula1="=OR(ISNUMBER(SEARCH(\"Auto-matched\", M11)), ISNUMBER(SEARCH(\"Auto-Corrected\", M11)))")
         fc2.Interior.Color = 16706267
         fc2.Font.Color = 14175773
         fc2.Font.Bold = True
 
         # Rule 3: Price Mismatch (Light Amber fill #FEF3C7, Dark Amber text #B45309)
-        fc3 = m_range.FormatConditions.Add(Type=1, Operator=3, Formula1="=\"⚠️ Price Mismatch!\"")
+        fc3 = m_range.FormatConditions.Add(Type=2, Formula1="=ISNUMBER(SEARCH(\"Price Mismatch\", M11))")
         fc3.Interior.Color = 13104126
         fc3.Font.Color = 611636
         fc3.Font.Bold = True
 
         # Rule 4: SKU not found (Light Red fill #FEE2E2, Dark Red text #B91C1C)
-        fc4 = m_range.FormatConditions.Add(Type=1, Operator=3, Formula1="=\"⚠️ SKU not found in Price List\"")
+        fc4 = m_range.FormatConditions.Add(Type=2, Formula1="=ISNUMBER(SEARCH(\"SKU not found\", M11))")
         fc4.Interior.Color = 14869246
         fc4.Font.Color = 1841337
         fc4.Font.Bold = True
@@ -1436,14 +1453,14 @@ def run_fill(workbook_path):
     active_sheet_name = None
     try:
         curr_name = excel.ActiveSheet.Name
-        if curr_name in ["Amit Order", "Blinkit Order", "Firstcry Order", "Swiggy Order"] and wb.Sheets(curr_name).Range("C5").Value:
+        if curr_name in ["Amit Order", "Blinkit Order", "Firstcry Order", "Swiggy Order"] and (wb.Sheets(curr_name).Range("A5").Value or wb.Sheets(curr_name).Range("C4").Value):
             active_sheet_name = curr_name
     except Exception:
         pass
         
     if not active_sheet_name:
         for sname in ["Amit Order", "Blinkit Order", "Firstcry Order", "Swiggy Order"]:
-            if wb.Sheets(sname).Range("C5").Value:
+            if wb.Sheets(sname).Range("A5").Value or wb.Sheets(sname).Range("C4").Value:
                 active_sheet_name = sname
                 break
                 
@@ -1461,8 +1478,8 @@ def run_fill(workbook_path):
     except Exception as calc_err:
         print(f"Warning during recalculation: {calc_err}")
         
-    party_name = sh_order.Range("C5").Value
-    order_file = sh_order.Range("C6").Value
+    party_name = sh_order.Range("A5").Value or sh_order.Range("C4").Value
+    order_file = sh_order.Range("C5").Value
     if not party_name:
         print("Error: No order loaded in the sheet.")
         return
@@ -1666,9 +1683,8 @@ def push_team_masters(workbook_path):
     # Also update CURRENT_VERSION inside process_excel_order.py
     py_script = os.path.join(wb_dir, "process_excel_order.py")
     try:
-        with open(py_script, "r", encoding="utf-8") as pf:
-            py_code = pf.read()
-        py_code_new = py_code.replace(f'CURRENT_VERSION = "1.1.7"', f'CURRENT_VERSION = "1.1.7"')
+        import re
+        py_code_new = re.sub(r'CURRENT_VERSION\s*=\s*"[^"]+"', f'CURRENT_VERSION = "{next_ver}"', py_code)
         with open(py_script, "w", encoding="utf-8") as pf:
             pf.write(py_code_new)
     except Exception as py_ver_err:
