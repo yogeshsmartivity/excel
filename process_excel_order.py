@@ -912,12 +912,13 @@ def detect_vendor(order_path, current_active_sheet=None):
     if ext == '.pdf':
         try:
             reader = pypdf.PdfReader(order_path)
-            content_text = ""
+            raw_pdf_text = ""
             for p in reader.pages[:min(3, len(reader.pages))]:
                 t = p.extract_text()
                 if t:
-                    content_text += t.upper() + " "
+                    raw_pdf_text += t + " "
                     
+            content_text = re.sub(r'\s+', ' ', raw_pdf_text.upper())
             if any(k in content_text for k in ["BRAINBEES", "DIGITAL AGE RETAIL", "DIGITAL AGE", "FIRSTCRY", "FIRST CRY", "MAHINDRA FIRSTCRY"]):
                 return "Firstcry Order"
             if any(k in content_text for k in ["BLINK COMMERCE", "BLINKIT", "GROFERS"]):
@@ -937,13 +938,14 @@ def detect_vendor(order_path, current_active_sheet=None):
             else:
                 df_det = pd.read_excel(order_path, nrows=20)
             text_cells = " ".join([str(c).upper() for c in df_det.columns] + [str(v).upper() for v in df_det.values.flatten()[:100]])
-            if any(k in text_cells for k in ["BRAINBEES", "DIGITAL AGE", "FIRSTCRY", "FIRST CRY", "FC"]):
+            text_cells_norm = re.sub(r'\s+', ' ', text_cells)
+            if any(k in text_cells_norm for k in ["BRAINBEES", "DIGITAL AGE", "FIRSTCRY", "FIRST CRY", "FC"]):
                 return "Firstcry Order"
-            if any(k in text_cells for k in ["BLINK COMMERCE", "BLINKIT", "GROFERS"]):
+            if any(k in text_cells_norm for k in ["BLINK COMMERCE", "BLINKIT", "GROFERS"]):
                 return "Blinkit Order"
-            if any(k in text_cells for k in ["CLOUDKART", "SWIGGY", "BUNDL"]):
+            if any(k in text_cells_norm for k in ["CLOUDKART", "SWIGGY", "BUNDL"]):
                 return "Swiggy Order"
-            if any(k in text_cells for k in ["APEX", "AMIT"]):
+            if any(k in text_cells_norm for k in ["APEX", "AMIT"]):
                 return "Amit Order"
         except Exception as ex_det:
             print(f"Warning checking excel for vendor detection: {ex_det}")
