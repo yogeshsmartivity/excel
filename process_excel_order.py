@@ -1,6 +1,11 @@
 import os
 import re
 import sys
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
 import argparse
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -281,22 +286,41 @@ def parse_pdf_with_gemini(file_path, api_key, is_firstcry=False):
         """
     
     print("Extracting fields using Gemini AI...")
+    response = None
+    models_to_try = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash", "gemini-1.5-flash"]
+    
     if use_new_sdk:
-        response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=[uploaded_file, prompt]
-        )
+        for model_candidate in models_to_try:
+            try:
+                response = client.models.generate_content(
+                    model=model_candidate,
+                    contents=[uploaded_file, prompt]
+                )
+                if response and response.text:
+                    break
+            except Exception as m_err:
+                print(f"Note: Model {model_candidate} attempt: {m_err}")
+                
         try:
             client.files.delete(name=uploaded_file.name)
         except Exception as del_err:
             print(f"Gemini API Clean-up Warning: {del_err}")
     else:
-        model = genai_legacy.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content([uploaded_file, prompt])
+        for model_candidate in models_to_try:
+            try:
+                model = genai_legacy.GenerativeModel(model_candidate)
+                response = model.generate_content([uploaded_file, prompt])
+                if response and response.text:
+                    break
+            except Exception as m_err:
+                print(f"Note: Model {model_candidate} attempt: {m_err}")
         try:
             uploaded_file.delete()
         except Exception as del_err:
             print(f"Gemini API Clean-up Warning: {del_err}")
+        
+    if not response or not response.text:
+        raise RuntimeError("Gemini AI could not generate content from the order PDF.")
         
     text = response.text.strip()
     # Clean output backticks if any
@@ -563,7 +587,8 @@ def parse_firstcry_po(file_path):
         if line.isdigit() and (int(line) == expected_sr or int(line) == expected_sr - 1 or (1 <= int(line) <= 500)):
             style_idx = -1
             for j in range(i + 1, min(i + 25, len(lines))):
-                if re.match(r'^(?:SMRT|SMR|SMART)[-_A-Za-z0-9]+', lines[j], re.I):
+                val = lines[j].strip()
+                if re.match(r'^SMRT[-_0-9]+', val, re.I) or (val.upper().startswith('SMRT') and not val.upper().startswith('SMARTIVITY')):
                     style_idx = j
                     break
             
@@ -595,7 +620,7 @@ def parse_firstcry_po(file_path):
                         desc_parts.append(lines[j].strip())
                 else:
                     for j in range(i + 1, style_idx):
-                        if lines[j].strip() != product_id:
+                        if lines[j].strip() != product_id and not lines[j].strip().startswith("2026-") and len(lines[j].strip()) < 15:
                             desc_parts.append(lines[j].strip())
                 description = " ".join(desc_parts).replace('\t', ' ').strip()
                 
@@ -614,13 +639,14 @@ def parse_firstcry_po(file_path):
                     extracted_items.append({
                         'name': description,
                         'sku': product_id,
+                        'style': style_code,
                         'mrp': mrp,
                         'qty': qty,
                         'scheme': 0,
                         'base_cost': base_cost
                     })
                     expected_sr = int(line) + 1
-                    i = style_idx + 4
+                    i = style_idx + 6
                     continue
                 except Exception as ex:
                     print(f"Error parsing item {expected_sr} near line {i}: {ex}")
@@ -1096,16 +1122,24 @@ def run_import(order_path, workbook_path, active_sheet_arg=None):
             
     # Resolve, Base Match and Correct Prices for all items
     for item in items:
-        raw_sku = str(item['sku']).strip()
+        raw_sku = str(item.get('sku', '')).strip()
+        raw_style = str(item.get('style', '')).strip()
         if raw_sku.endswith(".0"):
             raw_sku = raw_sku[:-2]
+        if raw_style.endswith(".0"):
+            raw_style = raw_style[:-2]
             
         clean_key = raw_sku.upper().replace(" ", "")
+        clean_style = raw_style.upper().replace(" ", "")
         resolved_sku = None
         auto_matched = False
         
         if clean_key in id_to_std_sku:
             resolved_sku = id_to_std_sku[clean_key]
+        elif clean_style and clean_style in id_to_std_sku:
+            resolved_sku = id_to_std_sku[clean_style]
+            auto_matched = True
+            print(f"Style SKU matched '{raw_style}' to '{resolved_sku}'")
         elif clean_key.startswith("SMRT") and len(clean_key) >= 8:
             base_key = clean_key[:8]
             if base_key in base_to_std_sku:
@@ -1114,6 +1148,14 @@ def run_import(order_path, workbook_path, active_sheet_arg=None):
                 print(f"Base SKU matched '{raw_sku}' to '{resolved_sku}'")
             else:
                 resolved_sku = raw_sku
+        elif clean_style.startswith("SMRT") and len(clean_style) >= 8:
+            base_key = clean_style[:8]
+            if base_key in base_to_std_sku:
+                resolved_sku = base_to_std_sku[base_key]
+                auto_matched = True
+                print(f"Base Style matched '{raw_style}' to '{resolved_sku}'")
+            else:
+                resolved_sku = raw_style
         else:
             resolved_sku = raw_sku
                 
@@ -1194,7 +1236,7 @@ def run_import(order_path, workbook_path, active_sheet_arg=None):
             break
 
     # If new party detected without discounts, prompt user with top-most popup
-    if matched_party_disc is None and clean_party_upper and clean_party_upper not in ["NONE", "UNKNOWN PARTY", ""]:
+    if active_sheet_name != "Firstcry Order" and matched_party_disc is None and clean_party_upper and clean_party_upper not in ["NONE", "UNKNOWN PARTY", ""]:
         try:
             import tkinter as tk
             from tkinter import simpledialog
@@ -1519,23 +1561,29 @@ def run_import(order_path, workbook_path, active_sheet_arg=None):
 
     print("Import and verification completed successfully!")
 
-def run_fill(workbook_path):
+def run_fill(workbook_path, active_sheet_arg=None):
     print(f"Reading verified order rows from workbook: {workbook_path}...")
     excel, wb = get_active_workbook(workbook_path)
     
-    active_sheet_name = None
-    try:
-        curr_name = excel.ActiveSheet.Name
-        if curr_name in ["Amit Order", "Blinkit Order", "Firstcry Order", "Swiggy Order"] and (wb.Sheets(curr_name).Range("A5").Value or wb.Sheets(curr_name).Range("C4").Value):
-            active_sheet_name = curr_name
-    except Exception:
-        pass
+    active_sheet_name = active_sheet_arg
+    if not active_sheet_name or active_sheet_name not in ["Amit Order", "Blinkit Order", "Firstcry Order", "Swiggy Order"]:
+        try:
+            curr_name = excel.ActiveSheet.Name
+            if curr_name in ["Amit Order", "Blinkit Order", "Firstcry Order", "Swiggy Order"]:
+                active_sheet_name = curr_name
+        except Exception:
+            pass
         
     if not active_sheet_name:
-        for sname in ["Amit Order", "Blinkit Order", "Firstcry Order", "Swiggy Order"]:
-            if wb.Sheets(sname).Range("A5").Value or wb.Sheets(sname).Range("C4").Value:
-                active_sheet_name = sname
-                break
+        for sname in ["Firstcry Order", "Blinkit Order", "Swiggy Order", "Amit Order"]:
+            try:
+                val_a11 = wb.Sheets(sname).Range("A11").Value
+                val_a5 = wb.Sheets(sname).Range("A5").Value
+                if val_a11 or (val_a5 and str(val_a5).strip().upper() != "PARTY NAME"):
+                    active_sheet_name = sname
+                    break
+            except Exception:
+                pass
                 
     if not active_sheet_name:
         active_sheet_name = "Amit Order"
@@ -1826,7 +1874,7 @@ if __name__ == "__main__":
             run_import(args.order, args.workbook, active_sheet_arg=args.sheet)
         elif args.fill_mode:
             check_for_updates(args_workbook)
-            run_fill(args.workbook)
+            run_fill(args.workbook, active_sheet_arg=args.sheet)
         else:
             print("Error: Specify --import, --fill, --check-update or --push-masters")
             sys.exit(1)
