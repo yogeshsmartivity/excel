@@ -9,7 +9,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.2.8"
+CURRENT_VERSION = "1.3.0"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -32,6 +32,13 @@ def check_for_updates(workbook_path=None, force_download=False):
     """
     try:
         import urllib.request
+        import ssl
+        try:
+            import certifi
+            ssl_context = ssl.create_default_context(cafile=certifi.where())
+        except Exception:
+            ssl_context = ssl._create_unverified_context()
+
         wb_dir = os.path.dirname(os.path.abspath(workbook_path)) if workbook_path else os.path.dirname(os.path.abspath(__file__))
         version_file = os.path.join(wb_dir, "version.txt")
         
@@ -57,7 +64,7 @@ def check_for_updates(workbook_path=None, force_download=False):
         try:
             online_ver_url = GITHUB_RAW_BASE + "version.txt"
             req = urllib.request.Request(online_ver_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=5, context=ssl_context) as resp:
                 online_text = resp.read().decode('utf-8')
                 for l in online_text.split('\n'):
                     if l.startswith("VERSION="):
@@ -80,7 +87,9 @@ def check_for_updates(workbook_path=None, force_download=False):
                 try:
                     dl_url = GITHUB_RAW_BASE + fn
                     dl_path = os.path.join(wb_dir, fn)
-                    urllib.request.urlretrieve(dl_url, dl_path)
+                    req_dl = urllib.request.Request(dl_url, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req_dl, timeout=10, context=ssl_context) as resp_dl, open(dl_path, "wb") as out_f:
+                        out_f.write(resp_dl.read())
                     print(f"  [DOWNLOADED] {fn}")
                 except Exception as dl_err:
                     print(f"  [DL ERROR] {fn}: {dl_err}")
@@ -186,7 +195,7 @@ def sync_master_price_list(wb, wb_dir):
         except Exception as disc_err:
             print(f"Warning syncing discount list: {disc_err}")
 
-def parse_pdf_with_gemini(file_path, api_key):
+def parse_pdf_with_gemini(file_path, api_key, is_firstcry=False):
     import warnings
     warnings.filterwarnings("ignore")
     import json
@@ -208,20 +217,24 @@ def parse_pdf_with_gemini(file_path, api_key):
     else:
         uploaded_file = genai_legacy.upload_file(file_path)
     
-    is_firstcry = "firstcry" in os.path.basename(file_path).lower()
+    if not is_firstcry:
+        fn_lower = os.path.basename(file_path).lower()
+        if any(k in fn_lower for k in ["firstcry", "first_cry", "first cry", "brainbees", "digital_age", "digitalage"]):
+            is_firstcry = True
     
     if is_firstcry:
         prompt = """
         Analyze this purchase order PDF.
         Extract the following information:
-        1. The name of the buyer/party (e.g. DIGITAL AGE RETAIL PRIVATE LIMITED, etc.). Return this as 'party_name'.
+        1. The name of the buyer/party (e.g. DIGITAL AGE RETAIL PRIVATE LIMITED, BRAINBEES SOLUTIONS LIMITED, etc.). Return this as 'party_name'.
         2. The list of items ordered. For each item, extract:
-           - 'sku': The Product ID (e.g. 15433823).
+           - 'sku': The Product ID (e.g. 15433823) or Style Code (e.g. SMRT1012).
            - 'name': The name/description of the item.
            - 'qty': The main ordered quantity (integer).
            - 'scheme': The free or scheme quantity if mentioned (integer, default 0).
            - 'mrp': The printed unit rate or MRP (float).
-           
+           - 'base_cost': The base cost, cost price, landing cost or purchase rate if mentioned (float, default 0.0).
+            
         Return the result strictly as a JSON object with two keys:
         {
           "party_name": "...",
@@ -231,9 +244,9 @@ def parse_pdf_with_gemini(file_path, api_key):
               "name": "...",
               "qty": 10,
               "scheme": 0,
-              "mrp": 100.0
-            },
-            ...
+              "mrp": 100.0,
+              "base_cost": 50.0
+            }
           ]
         }
         Make sure to output ONLY the raw JSON string. Do not wrap it in markdown backticks or blockquotes.
@@ -547,10 +560,10 @@ def parse_firstcry_po(file_path):
     
     while i < len(lines):
         line = lines[i].strip()
-        if line.isdigit() and int(line) == expected_sr:
+        if line.isdigit() and (int(line) == expected_sr or int(line) == expected_sr - 1 or (1 <= int(line) <= 500)):
             style_idx = -1
             for j in range(i + 1, min(i + 25, len(lines))):
-                if re.match(r'^SMRT\d+', lines[j]):
+                if re.match(r'^(?:SMRT|SMR|SMART)[-_A-Za-z0-9]+', lines[j], re.I):
                     style_idx = j
                     break
             
@@ -563,9 +576,11 @@ def parse_firstcry_po(file_path):
                 product_id = ""
                 for j in range(i + 1, style_idx):
                     val = lines[j].strip()
-                    if val.isdigit() and 7 <= len(val) <= 9:
+                    if val.isdigit() and 6 <= len(val) <= 10:
                         product_id = val
                         break
+                if not product_id:
+                    product_id = style_code
                 
                 desc_parts = []
                 prod_id_idx = -1
@@ -578,6 +593,10 @@ def parse_firstcry_po(file_path):
                 if prod_id_idx != -1:
                     for j in range(prod_id_idx + 1, style_idx):
                         desc_parts.append(lines[j].strip())
+                else:
+                    for j in range(i + 1, style_idx):
+                        if lines[j].strip() != product_id:
+                            desc_parts.append(lines[j].strip())
                 description = " ".join(desc_parts).replace('\t', ' ').strip()
                 
                 try:
@@ -587,7 +606,10 @@ def parse_firstcry_po(file_path):
                     
                     base_cost_str = lines[style_idx + 6].strip() if style_idx + 6 < len(lines) else "0.0"
                     base_cost_clean = base_cost_str.replace('₹', '').replace(',', '').strip()
-                    base_cost = float(base_cost_clean)
+                    try:
+                        base_cost = float(base_cost_clean)
+                    except ValueError:
+                        base_cost = 0.0
                     
                     extracted_items.append({
                         'name': description,
@@ -597,14 +619,20 @@ def parse_firstcry_po(file_path):
                         'scheme': 0,
                         'base_cost': base_cost
                     })
-                    expected_sr += 1
+                    expected_sr = int(line) + 1
                     i = style_idx + 4
                     continue
                 except Exception as ex:
                     print(f"Error parsing item {expected_sr} near line {i}: {ex}")
         i += 1
         
-    party_name = "Digital Age Retail Pvt. Ltd."
+    full_pdf_text = " ".join(lines).upper()
+    if "BRAINBEES SOLUTIONS" in full_pdf_text or "BRAINBEES" in full_pdf_text:
+        party_name = "Brainbees Solutions Limited"
+    elif "DIGITAL AGE RETAIL" in full_pdf_text or "DIGITAL AGE" in full_pdf_text:
+        party_name = "Digital Age Retail Pvt. Ltd."
+    else:
+        party_name = "Digital Age Retail Pvt. Ltd."
     return party_name, extracted_items
 
 def parse_excel_order(file_path):
@@ -619,9 +647,10 @@ def parse_excel_order(file_path):
     scheme_col = None
     name_col = None
     mrp_col = None
+    base_cost_col = None
     
     for original, clean in col_map.items():
-        if clean in ['SKU', 'SKU CODE', 'ITEM CODE', 'ITEMCODE', 'BN ITEM NO', 'BNITEMNO', 'PRODUCT CODE']:
+        if clean in ['SKU', 'SKU CODE', 'ITEM CODE', 'ITEMCODE', 'BN ITEM NO', 'BNITEMNO', 'PRODUCT CODE', 'PRODUCT ID', 'FC SKU', 'ITEM ID']:
             sku_col = clean
         elif clean in ['QTY', 'QUANTITY', 'QTY ORDERED', 'ORDER QTY', 'QUANTITY ORDERED']:
             qty_col = clean
@@ -631,6 +660,8 @@ def parse_excel_order(file_path):
             name_col = clean
         elif clean in ['MRP', 'RATE', 'PRICE', 'UNIT PRICE', 'BASIC RATE', 'ORDER MRP']:
             mrp_col = clean
+        elif clean in ['BASE COST', 'BASE_COST', 'LANDING COST', 'LANDING_COST', 'PURCHASE RATE', 'BUYING RATE', 'COST PRICE', 'COST']:
+            base_cost_col = clean
             
     if not sku_col and len(df.columns) > 0:
         sku_col = df.columns[0]
@@ -663,13 +694,15 @@ def parse_excel_order(file_path):
         scheme = int(row[scheme_col]) if scheme_col and pd.notna(row[scheme_col]) else 0
         name = str(row[name_col]).strip() if name_col and pd.notna(row[name_col]) else ""
         mrp = float(row[mrp_col]) if mrp_col and pd.notna(row[mrp_col]) else 0.0
+        base_cost = float(row[base_cost_col]) if base_cost_col and pd.notna(row[base_cost_col]) else 0.0
         
         extracted_items.append({
             'sku': sku,
             'qty': qty,
             'scheme': scheme,
             'name': name,
-            'mrp': mrp
+            'mrp': mrp,
+            'base_cost': base_cost
         })
     return party_name, extracted_items
 
@@ -832,48 +865,88 @@ def parse_swiggy_po(pdf_path):
         
     return party_name, extracted_items
 
-def detect_vendor(order_path):
+def detect_vendor(order_path, current_active_sheet=None):
+    valid_order_sheets = ["Firstcry Order", "Blinkit Order", "Swiggy Order", "Amit Order"]
+    
     filename = os.path.basename(order_path).lower()
-    if "firstcry" in filename:
+    
+    # 1. Check filename keywords
+    if any(k in filename for k in ["firstcry", "first_cry", "first-cry", "first cry", "fc_", "fc-", "fc ", "brainbees", "digital_age", "digitalage", "digital age"]):
         return "Firstcry Order"
-    if "blinkit" in filename:
+    if any(k in filename for k in ["blinkit", "blink_it", "grofers"]):
         return "Blinkit Order"
-    if "swiggy" in filename or "cloudkart" in filename:
+    if any(k in filename for k in ["swiggy", "cloudkart", "cvpl", "chcpo"]):
         return "Swiggy Order"
-    if "amit" in filename:
+    if any(k in filename for k in ["amit", "apex"]):
         return "Amit Order"
         
-    # Read PDF text to detect by content keywords
     ext = os.path.splitext(order_path)[1].lower()
+    
+    # 2. Read PDF text to detect by content keywords
     if ext == '.pdf':
         try:
             reader = pypdf.PdfReader(order_path)
-            if len(reader.pages) > 0:
-                text = reader.pages[0].extract_text()
-                if text:
-                    text_upper = text.upper()
-                    if "DIGITAL AGE RETAIL" in text_upper or "FIRSTCRY" in text_upper:
-                        return "Firstcry Order"
-                    if "BLINK COMMERCE" in text_upper or "BLINKIT" in text_upper:
-                        return "Blinkit Order"
-                    if "CLOUDKART" in text_upper or "SWIGGY" in text_upper:
-                        return "Swiggy Order"
-                    if "APEX ENTERPRISES" in text_upper or "SMARTIVITY LABS" in text_upper:
-                        return "Amit Order"
+            content_text = ""
+            for p in reader.pages[:min(3, len(reader.pages))]:
+                t = p.extract_text()
+                if t:
+                    content_text += t.upper() + " "
+                    
+            if any(k in content_text for k in ["BRAINBEES", "DIGITAL AGE RETAIL", "DIGITAL AGE", "FIRSTCRY", "FIRST CRY", "MAHINDRA FIRSTCRY"]):
+                return "Firstcry Order"
+            if any(k in content_text for k in ["BLINK COMMERCE", "BLINKIT", "GROFERS"]):
+                return "Blinkit Order"
+            if any(k in content_text for k in ["CLOUDKART", "SWIGGY", "BUNDL TECHNOLOGIES", "CHCPO"]):
+                return "Swiggy Order"
+            if any(k in content_text for k in ["APEX ENTERPRISES", "AMIT ENTERPRISES", "SMARTIVITY LABS"]):
+                return "Amit Order"
         except Exception as e:
             print(f"Warning during vendor auto-detection: {e}")
             
+    # 3. Read Excel / CSV text to detect by content keywords
+    elif ext in ['.xlsx', '.xls', '.csv']:
+        try:
+            if ext == '.csv':
+                df_det = pd.read_csv(order_path, nrows=20)
+            else:
+                df_det = pd.read_excel(order_path, nrows=20)
+            text_cells = " ".join([str(c).upper() for c in df_det.columns] + [str(v).upper() for v in df_det.values.flatten()[:100]])
+            if any(k in text_cells for k in ["BRAINBEES", "DIGITAL AGE", "FIRSTCRY", "FIRST CRY", "FC"]):
+                return "Firstcry Order"
+            if any(k in text_cells for k in ["BLINK COMMERCE", "BLINKIT", "GROFERS"]):
+                return "Blinkit Order"
+            if any(k in text_cells for k in ["CLOUDKART", "SWIGGY", "BUNDL"]):
+                return "Swiggy Order"
+            if any(k in text_cells for k in ["APEX", "AMIT"]):
+                return "Amit Order"
+        except Exception as ex_det:
+            print(f"Warning checking excel for vendor detection: {ex_det}")
+            
+    # 4. Respect current active sheet if user was already on an order sheet!
+    if current_active_sheet and current_active_sheet in valid_order_sheets:
+        return current_active_sheet
+        
     # Default fallback
     return "Amit Order"
 
-def run_import(order_path, workbook_path):
+def run_import(order_path, workbook_path, active_sheet_arg=None):
     print(f"Running Import to workbook: {workbook_path}...")
     
     excel, wb = get_active_workbook(workbook_path)
     
+    # Check active sheet in Excel
+    current_active = active_sheet_arg
+    if not current_active:
+        try:
+            c_name = excel.ActiveSheet.Name
+            if c_name in ["Firstcry Order", "Blinkit Order", "Swiggy Order", "Amit Order"]:
+                current_active = c_name
+        except Exception:
+            pass
+            
     # Auto-detect vendor sheet
-    target_sheet_name = detect_vendor(order_path)
-    print(f"Auto-detected target sheet for order: '{target_sheet_name}'")
+    target_sheet_name = detect_vendor(order_path, current_active_sheet=current_active)
+    print(f"Target sheet for order: '{target_sheet_name}'")
     active_sheet_name = target_sheet_name
     sh_order = wb.Sheets(active_sheet_name)
     try:
@@ -884,7 +957,7 @@ def run_import(order_path, workbook_path):
     # 1. Parse Order File
     ext = os.path.splitext(order_path)[1].lower()
     is_blinkit = (active_sheet_name == "Blinkit Order" or "blinkit" in os.path.basename(order_path).lower())
-    is_firstcry = (active_sheet_name == "Firstcry Order" or "firstcry" in os.path.basename(order_path).lower())
+    is_firstcry = (active_sheet_name == "Firstcry Order" or any(k in os.path.basename(order_path).lower() for k in ["firstcry", "first_cry", "first cry", "brainbees", "digital_age", "digitalage"]))
     is_swiggy = (active_sheet_name == "Swiggy Order" or "swiggy" in os.path.basename(order_path).lower() or "cloudkart" in os.path.basename(order_path).lower() or "cvpl" in os.path.basename(order_path).lower())
     
     if ext == '.pdf':
@@ -892,18 +965,18 @@ def run_import(order_path, workbook_path):
         pdf_content_text = ""
         try:
             reader_check = pypdf.PdfReader(order_path)
-            for p_check in reader_check.pages[:2]:
+            for p_check in reader_check.pages[:min(3, len(reader_check.pages))]:
                 t_check = p_check.extract_text()
                 if t_check:
                     pdf_content_text += t_check.upper() + " "
         except Exception:
             pass
 
-        if "CLOUDKART" in pdf_content_text or "CHCPO" in pdf_content_text or "SWIGGY" in pdf_content_text:
+        if any(k in pdf_content_text for k in ["CLOUDKART", "CHCPO", "SWIGGY", "BUNDL TECHNOLOGIES"]):
             is_swiggy = True
-        elif "BLINK COMMERCE" in pdf_content_text or "BLINKIT" in pdf_content_text:
+        elif any(k in pdf_content_text for k in ["BLINK COMMERCE", "BLINKIT", "GROFERS"]):
             is_blinkit = True
-        elif "FIRSTCRY" in pdf_content_text or "DIGITAL AGE RETAIL" in pdf_content_text:
+        elif any(k in pdf_content_text for k in ["BRAINBEES", "DIGITAL AGE RETAIL", "DIGITAL AGE", "FIRSTCRY", "FIRST CRY", "MAHINDRA FIRSTCRY"]):
             is_firstcry = True
 
         parsed_via_local = False
@@ -942,7 +1015,7 @@ def run_import(order_path, workbook_path):
                     
             if api_key and len(api_key) > 10 and not api_key.startswith("YOUR_GEMINI_API_KEY"):
                 try:
-                    party_name, items = parse_pdf_with_gemini(order_path, api_key)
+                    party_name, items = parse_pdf_with_gemini(order_path, api_key, is_firstcry=is_firstcry)
                     if items:
                         print("Successfully parsed PDF using Gemini AI!")
                         # Write warning file to trigger Excel popup
@@ -1734,6 +1807,7 @@ if __name__ == "__main__":
         parser.add_argument("--fill", action="store_true", dest="fill_mode", help="Run in template fill mode")
         parser.add_argument("--check-update", action="store_true", dest="check_update_mode", help="Check for updates from GitHub")
         parser.add_argument("--push-masters", action="store_true", dest="push_masters_mode", help="Push updated Price list and discounts to GitHub")
+        parser.add_argument("--sheet", type=str, default=None, help="Name of current active sheet in workbook")
         parser.add_argument("--order", type=str, help="Path to selected order file")
         parser.add_argument("--workbook", type=str, required=True, help="Path to active workbook")
         
@@ -1749,7 +1823,7 @@ if __name__ == "__main__":
             if not args.order:
                 print("Error: --order is required in import mode.")
                 sys.exit(1)
-            run_import(args.order, args.workbook)
+            run_import(args.order, args.workbook, active_sheet_arg=args.sheet)
         elif args.fill_mode:
             check_for_updates(args_workbook)
             run_fill(args.workbook)
