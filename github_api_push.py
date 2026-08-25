@@ -2,8 +2,15 @@ import os
 import sys
 import json
 import base64
+import ssl
 import urllib.request
 import urllib.error
+
+try:
+    import certifi
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+except Exception:
+    ssl_context = ssl._create_unverified_context()
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -49,7 +56,7 @@ def push_file_to_github(filename):
     get_url = f"{url}?ref={BRANCH}"
     try:
         req_get = urllib.request.Request(get_url, headers=headers)
-        with urllib.request.urlopen(req_get) as resp_get:
+        with urllib.request.urlopen(req_get, context=ssl_context) as resp_get:
             data = json.loads(resp_get.read().decode('utf-8'))
             sha = data.get("sha")
     except urllib.error.HTTPError as e:
@@ -68,7 +75,7 @@ def push_file_to_github(filename):
     req_put = urllib.request.Request(url, data=json_data, headers=headers, method="PUT")
     
     try:
-        with urllib.request.urlopen(req_put) as resp_put:
+        with urllib.request.urlopen(req_put, context=ssl_context) as resp_put:
             res = json.loads(resp_put.read().decode('utf-8'))
             print(f"  [SUCCESS] {filename} pushed to GitHub ({res.get('commit', {}).get('sha', '')[:7]})")
             return True
@@ -76,14 +83,14 @@ def push_file_to_github(filename):
         if ex.code == 409: # Conflict, re-fetch SHA and retry once
             try:
                 req_get = urllib.request.Request(get_url, headers=headers)
-                with urllib.request.urlopen(req_get) as resp_get:
+                with urllib.request.urlopen(req_get, context=ssl_context) as resp_get:
                     data = json.loads(resp_get.read().decode('utf-8'))
                     sha = data.get("sha")
                 if sha:
                     payload["sha"] = sha
                 json_data = json.dumps(payload).encode('utf-8')
                 req_put = urllib.request.Request(url, data=json_data, headers=headers, method="PUT")
-                with urllib.request.urlopen(req_put) as resp_put:
+                with urllib.request.urlopen(req_put, context=ssl_context) as resp_put:
                     res = json.loads(resp_put.read().decode('utf-8'))
                     print(f"  [SUCCESS] {filename} pushed to GitHub ({res.get('commit', {}).get('sha', '')[:7]})")
                     return True
