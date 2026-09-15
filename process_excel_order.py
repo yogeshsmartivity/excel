@@ -14,7 +14,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.4.1"
+CURRENT_VERSION = "1.4.2"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -86,6 +86,7 @@ def check_for_updates(workbook_path=None, force_download=False):
                 "github_api_push.py",
                 "master_price_list.xlsx",
                 "master_discount_list.xlsx",
+                "Updated templete.xlsx",
                 "version.txt"
             ]
             for fn in files_to_dl:
