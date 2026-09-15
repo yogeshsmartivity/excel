@@ -27,7 +27,7 @@ files_to_push = [
     "github_api_push.py",
     "master_price_list.xlsx",
     "master_discount_list.xlsx",
-    "Templete.xls",
+    "New Template.xlsx",
     "version.txt"
 ]
 
