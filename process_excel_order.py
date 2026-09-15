@@ -1693,13 +1693,13 @@ def run_fill(workbook_path, active_sheet_arg=None):
         
     # 2. Clear Template Data (Row 2 downwards) and Ensure Headers on Row 1
     print("Clearing template sheet data...")
-    headers = ["ItemCode", "VariantCodeNo", "Quantity", "Price", "DiscountPercent", "DiscountAmount", "GSTPercent", "CustomerItemCode", "CustomerItemName", "ItemRemark", "InputField"]
+    headers = ["BNItemNo", "VariantCodeNo", "Quantity", "Price", "DiscountPercent", "DiscountAmount", "CustomerItemCode", "CustomerItemName", "ItemRemark", "InputField"]
     for col_idx, h_text in enumerate(headers, 1):
         sh_temp.Cells(1, col_idx).Value = h_text
         
     last_temp_row = sh_temp.Cells(sh_temp.Rows.Count, "A").End(-4162).Row
     if last_temp_row >= 2:
-        sh_temp.Range(f"A2:K{last_temp_row + 10}").ClearContents()
+        sh_temp.Range(f"A2:N{last_temp_row + 10}").ClearContents()
         
     # 3. Build output rows (interleaving main and scheme rows)
     template_rows = []
@@ -1715,8 +1715,7 @@ def run_fill(workbook_path, active_sheet_arg=None):
                 item['qty'],
                 item['rate'],
                 disc_pct,
-                "", # DiscountAmount (blank as requested)
-                item['tax'] * 100.0 if item['tax'] > 0 else 0.0,
+                "", # DiscountAmount
                 "", # CustomerItemCode
                 "", # CustomerItemName
                 "", # ItemRemark
@@ -1734,12 +1733,11 @@ def run_fill(workbook_path, active_sheet_arg=None):
                 scheme_qty,
                 rate_val, # Price is the base rate (not 0.0)
                 100.0, # 100% discount
-                "", # DiscountAmount (blank as requested)
-                item['tax'] * 100.0 if item['tax'] > 0 else 0.0,
+                "", # DiscountAmount
                 "a", # CustomerItemCode
-                "",
-                "",
-                ""
+                "", # CustomerItemName
+                "", # ItemRemark
+                ""  # InputField
             ])
             
     # 4. Write to Template Sheet
