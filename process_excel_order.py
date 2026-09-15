@@ -14,7 +14,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.4.3"
+CURRENT_VERSION = "1.4.4"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1638,17 +1638,24 @@ def run_fill(workbook_path, active_sheet_arg=None):
     print(f"Reading rows from row 11 to {last_row}...")
     
     for r in range(11, last_row + 1):
+        raw_col_a = str(sh_order.Cells(r, 1).Value or "").strip().upper()
+        if "GRAND TOTAL" in raw_col_a or raw_col_a == "TOTAL":
+            continue
+            
         sku_val = sh_order.Cells(r, 6).Value # Column F is Price List SKU
         sku = str(sku_val).strip() if sku_val is not None else ""
-        if not sku or sku.upper() == 'NONE' or sku == "":
+        if not sku or sku.upper() in ['NONE', ''] or "GRAND TOTAL" in sku.upper() or sku.upper() == "TOTAL":
             sku_val = sh_order.Cells(r, 1).Value # Fallback to Column A (SMRT SKU)
             sku = str(sku_val).strip() if sku_val is not None else ""
             
-        if not sku or sku.upper() == 'NONE' or sku == "":
+        if not sku or sku.upper() in ['NONE', ''] or "GRAND TOTAL" in sku.upper() or sku.upper() == "TOTAL":
             continue
             
         qty = int(sh_order.Cells(r, 3).Value) if sh_order.Cells(r, 3).Value else 0
         scheme = int(sh_order.Cells(r, 4).Value) if sh_order.Cells(r, 4).Value else 0
+        
+        if qty <= 0 and scheme <= 0:
+            continue
         
         # Read looked-up values
         rate = float(sh_order.Cells(r, 7).Value) if sh_order.Cells(r, 7).Value else 0.0
