@@ -38,8 +38,15 @@ print("==========================================")
 def push_file_to_github(filename):
     file_path = os.path.join(BASE_DIR, filename)
     if not os.path.exists(file_path):
-        print(f"File not found: {file_path}")
-        return False
+        try:
+            raw_url = f"https://raw.githubusercontent.com/{OWNER}/{REPO}/{BRANCH}/{urllib.parse.quote(filename)}"
+            req_raw = urllib.request.Request(raw_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req_raw, timeout=10, context=ssl_context) as resp_raw, open(file_path, "wb") as f_out:
+                f_out.write(resp_raw.read())
+            print(f"  [AUTO-DOWNLOAD] {filename} fetched from GitHub")
+        except Exception:
+            print(f"File not found: {file_path}")
+            return False
         
     with open(file_path, "rb") as f:
         content_bytes = f.read()
