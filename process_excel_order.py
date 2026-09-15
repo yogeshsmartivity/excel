@@ -14,7 +14,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.4.4"
+CURRENT_VERSION = "1.4.2"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -86,7 +86,7 @@ def check_for_updates(workbook_path=None, force_download=False):
                 "github_api_push.py",
                 "master_price_list.xlsx",
                 "master_discount_list.xlsx",
-                "Templete.xls",
+                "Updated templete.xlsx",
                 "version.txt"
             ]
             for fn in files_to_dl:
@@ -1638,24 +1638,17 @@ def run_fill(workbook_path, active_sheet_arg=None):
     print(f"Reading rows from row 11 to {last_row}...")
     
     for r in range(11, last_row + 1):
-        raw_col_a = str(sh_order.Cells(r, 1).Value or "").strip().upper()
-        if "GRAND TOTAL" in raw_col_a or raw_col_a == "TOTAL":
-            continue
-            
         sku_val = sh_order.Cells(r, 6).Value # Column F is Price List SKU
         sku = str(sku_val).strip() if sku_val is not None else ""
-        if not sku or sku.upper() in ['NONE', ''] or "GRAND TOTAL" in sku.upper() or sku.upper() == "TOTAL":
+        if not sku or sku.upper() == 'NONE' or sku == "":
             sku_val = sh_order.Cells(r, 1).Value # Fallback to Column A (SMRT SKU)
             sku = str(sku_val).strip() if sku_val is not None else ""
             
-        if not sku or sku.upper() in ['NONE', ''] or "GRAND TOTAL" in sku.upper() or sku.upper() == "TOTAL":
+        if not sku or sku.upper() == 'NONE' or sku == "":
             continue
             
         qty = int(sh_order.Cells(r, 3).Value) if sh_order.Cells(r, 3).Value else 0
         scheme = int(sh_order.Cells(r, 4).Value) if sh_order.Cells(r, 4).Value else 0
-        
-        if qty <= 0 and scheme <= 0:
-            continue
         
         # Read looked-up values
         rate = float(sh_order.Cells(r, 7).Value) if sh_order.Cells(r, 7).Value else 0.0
@@ -1702,7 +1695,7 @@ def run_fill(workbook_path, active_sheet_arg=None):
         
     # 2. Clear Template Data (Row 2 downwards) and Ensure Headers on Row 1
     print("Clearing template sheet data...")
-    headers = ["BNItemNo", "VariantCodeNo", "Quantity", "Price", "DiscountPercent", "DiscountAmount", "TaxPercent", "CustomerItemCode", "CustomerItemName", "ItemRemark", "InputField"]
+    headers = ["BNItemNo", "VariantCodeNo", "Quantity", "Price", "DiscountPercent", "DiscountAmount", "CustomerItemCode", "CustomerItemName", "ItemRemark", "InputField"]
     for col_idx, h_text in enumerate(headers, 1):
         sh_temp.Cells(1, col_idx).Value = h_text
         
@@ -1725,7 +1718,6 @@ def run_fill(workbook_path, active_sheet_arg=None):
                 item['rate'],
                 disc_pct,
                 "", # DiscountAmount
-                item['tax'] * 100.0 if item['tax'] > 0 else 0.0,
                 "", # CustomerItemCode
                 "", # CustomerItemName
                 "", # ItemRemark
@@ -1744,7 +1736,6 @@ def run_fill(workbook_path, active_sheet_arg=None):
                 rate_val, # Price is the base rate (not 0.0)
                 100.0, # 100% discount
                 "", # DiscountAmount
-                item['tax'] * 100.0 if item['tax'] > 0 else 0.0,
                 "a", # CustomerItemCode
                 "", # CustomerItemName
                 "", # ItemRemark
