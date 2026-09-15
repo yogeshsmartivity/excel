@@ -14,7 +14,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.4.7"
+CURRENT_VERSION = "1.4.8"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -33,7 +33,7 @@ def check_for_updates(workbook_path=None, force_download=False):
     2. github_api_push.py
     3. master_price_list.xlsx
     4. master_discount_list.xlsx
-    5. Templete.xls
+    5. New Template.xlsx
     6. version.txt
     """
     try:
@@ -60,7 +60,7 @@ def check_for_updates(workbook_path=None, force_download=False):
                 
         # Check for missing critical files locally
         missing_files = []
-        for check_fn in ["github_api_push.py", "master_price_list.xlsx", "master_discount_list.xlsx", "Templete.xls"]:
+        for check_fn in ["github_api_push.py", "master_price_list.xlsx", "master_discount_list.xlsx", "New Template.xlsx"]:
             if not os.path.exists(os.path.join(wb_dir, check_fn)):
                 missing_files.append(check_fn)
                 
@@ -89,7 +89,7 @@ def check_for_updates(workbook_path=None, force_download=False):
                 "github_api_push.py",
                 "master_price_list.xlsx",
                 "master_discount_list.xlsx",
-                "Templete.xls",
+                "New Template.xlsx",
                 "version.txt"
             ]
             import time
@@ -1705,15 +1705,15 @@ def run_fill(workbook_path, active_sheet_arg=None):
         print("Error: No valid rows to process.")
         return
         
-    # 2. Clear Template Data (Row 2 downwards) and Ensure Headers on Row 1
+    # 2. Clear Template Data and Ensure Headers on Row 1
     print("Clearing template sheet data...")
-    headers = ["BNItemNo", "VariantCodeNo", "Quantity", "Price", "DiscountPercent", "DiscountAmount", "TaxPercent", "CustomerItemCode", "CustomerItemName", "ItemRemark", "InputField"]
+    headers = ["BNItemNo", "VariantCodeNo", "Quantity", "Price", "DiscountPercent", "DiscountAmount", "CustomerItemCode", "CustomerItemName", "ItemRemark", "InputField"]
+    
+    last_temp_row = sh_temp.Cells(sh_temp.Rows.Count, "A").End(-4162).Row
+    sh_temp.Range(f"A1:Z{max(last_temp_row + 10, 50)}").ClearContents()
+    
     for col_idx, h_text in enumerate(headers, 1):
         sh_temp.Cells(1, col_idx).Value = h_text
-        
-    last_temp_row = sh_temp.Cells(sh_temp.Rows.Count, "A").End(-4162).Row
-    if last_temp_row >= 2:
-        sh_temp.Range(f"A2:N{last_temp_row + 10}").ClearContents()
         
     # 3. Build output rows (interleaving main and scheme rows)
     template_rows = []
@@ -1730,7 +1730,6 @@ def run_fill(workbook_path, active_sheet_arg=None):
                 item['rate'],
                 disc_pct,
                 "", # DiscountAmount
-                item['tax'] * 100.0 if item['tax'] > 0 else 0.0,
                 "", # CustomerItemCode
                 "", # CustomerItemName
                 "", # ItemRemark
@@ -1749,7 +1748,6 @@ def run_fill(workbook_path, active_sheet_arg=None):
                 rate_val, # Price is the base rate (not 0.0)
                 100.0, # 100% discount
                 "", # DiscountAmount
-                item['tax'] * 100.0 if item['tax'] > 0 else 0.0,
                 "a", # CustomerItemCode
                 "", # CustomerItemName
                 "", # ItemRemark
