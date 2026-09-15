@@ -14,7 +14,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.4.0"
+CURRENT_VERSION = "1.4.1"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1767,27 +1767,24 @@ def run_fill(workbook_path, active_sheet_arg=None):
             import openpyxl
             from openpyxl.styles import Font, PatternFill, Alignment, Border
             
-            clean_pname = re.sub(r'[\\/*?:\"<>| ]+', '_', str(party_name or 'Order')).strip('_')
             dest_file_main = os.path.join(desktop_dir, "SaleInvoiceItemUpload.xlsx")
-            dest_file_party = os.path.join(desktop_dir, f"SaleInvoiceItemUpload_{clean_pname}.xlsx")
             
-            for dest_path in [dest_file_main, dest_file_party]:
-                wb_out = openpyxl.Workbook()
-                sh_out = wb_out.active
-                sh_out.title = "SaleInvoiceItemUpload"
+            wb_out = openpyxl.Workbook()
+            sh_out = wb_out.active
+            sh_out.title = "SaleInvoiceItemUpload"
+            
+            # Write bold headers
+            for c_idx, h_name in enumerate(headers, 1):
+                c_cell = sh_out.cell(1, c_idx, h_name)
+                c_cell.font = Font(name="Calibri", size=11, bold=True)
                 
-                # Write bold headers
-                for c_idx, h_name in enumerate(headers, 1):
-                    c_cell = sh_out.cell(1, c_idx, h_name)
-                    c_cell.font = Font(name="Calibri", size=11, bold=True)
+            # Write data rows
+            for r_idx, r_data in enumerate(template_rows, 2):
+                for c_idx, val in enumerate(r_data, 1):
+                    sh_out.cell(r_idx, c_idx, val)
                     
-                # Write data rows
-                for r_idx, r_data in enumerate(template_rows, 2):
-                    for c_idx, val in enumerate(r_data, 1):
-                        sh_out.cell(r_idx, c_idx, val)
-                        
-                wb_out.save(dest_path)
-                print(f"  [SAVED TO DESKTOP] {dest_path}")
+            wb_out.save(dest_file_main)
+            print(f"  [SAVED TO DESKTOP] {dest_file_main}")
                 
             print(f"Software Upload file created on Desktop: SaleInvoiceItemUpload.xlsx")
         except Exception as desk_err:
