@@ -379,9 +379,18 @@ def parse_pdf_order(file_path):
     party_name = "UNKNOWN PARTY"
     for idx, l in enumerate(lines):
         if "BILLTO" in l.upper().replace(" ", ""):
-            if idx + 1 < len(lines):
-                party_name = lines[idx + 1].strip()
-                break
+            party_parts = []
+            for k in range(idx + 1, min(idx + 6, len(lines))):
+                curr = lines[k].strip()
+                curr_u = curr.upper()
+                if any(kw in curr_u for kw in ["GSTIN:", "DISTRIBUTOR", "ORDER INFO", "ORDER NO", "DATE:", "PIN:", "STATE:", "TELANGANA", "HARYANA", "DELHI", "MAHARASHTRA", "KARNATAKA", "GUJARAT", "TAMIL NADU"]):
+                    break
+                if re.match(r'^\d+[/,-]', curr) or any(addr_k in curr_u for addr_k in ["LANE", "ROAD", "PLOT", "SECTOR", "BUILDING", "STREET", "NAGAR", "NEAR", "OPP", "INDOSPACE"]):
+                    break
+                party_parts.append(curr)
+            if party_parts:
+                party_name = " ".join(party_parts).strip()
+            break
                 
     extracted_items = []
     i = 0
@@ -1229,13 +1238,22 @@ def run_import(order_path, workbook_path, active_sheet_arg=None):
         if pclean and pclean != "NONE":
             party_discounts[pclean] = disc_dict
 
-    # Find matching party discount dict
+    # Find matching party discount dict and exact official name in discount sheet
     matched_party_disc = None
+    matched_party_official_name = None
     clean_party_upper = party_name.upper().strip()
     for pk, pd_dict in party_discounts.items():
-        if pk in clean_party_upper or clean_party_upper in pk:
+        if pk == clean_party_upper or pk in clean_party_upper or clean_party_upper in pk:
             matched_party_disc = pd_dict
+            matched_party_official_name = pk
             break
+
+    if matched_party_official_name:
+        for dr in range(2, last_disc_row + 1):
+            cell_val = str(sh_disc.Cells(dr, 1).Value or "").strip()
+            if cell_val.upper() == matched_party_official_name:
+                party_name = cell_val
+                break
 
     # If new party detected without discounts, prompt user with top-most popup
     if active_sheet_name != "Firstcry Order" and matched_party_disc is None and clean_party_upper and clean_party_upper not in ["NONE", "UNKNOWN PARTY", ""]:
@@ -1291,7 +1309,8 @@ def run_import(order_path, workbook_path, active_sheet_arg=None):
             base_cost = item.get('base_cost', 0.0)
             sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), 0, IF(G{r}=0, 0, ROUND(1 - ({base_cost} / G{r}), 5)))'
         else:
-            sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.05, INDEX(discount!C:C, MATCH($A$5, discount!A:A, 0)), IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, MATCH($A$5, discount!A:A, 0)), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, MATCH($A$5, discount!A:A, 0)), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, MATCH($A$5, discount!A:A, 0)), INDEX(discount!C:C, MATCH($A$5, discount!A:A, 0)))))), 0))'
+            disc_match = "IFERROR(MATCH($A$5, discount!A:A, 0), IFERROR(MATCH(\"*\" & LEFT($A$5, 12) & \"*\", discount!A:A, 0), MATCH(\"*\" & LEFT($A$5, 6) & \"*\", discount!A:A, 0)))"
+            sh_order.Cells(r, 10).Value = f'=IF(ISBLANK(A{r}), "", IFERROR(IF(ROUND(H{r},2)=0.05, INDEX(discount!C:C, {disc_match}), IF(ROUND(H{r},2)=0.18, INDEX(discount!E:E, {disc_match}), IF(ROUND(H{r},2)=0.12, INDEX(discount!D:D, {disc_match}), IF(ROUND(H{r},2)=0.28, INDEX(discount!F:F, {disc_match}), INDEX(discount!C:C, {disc_match}))))), 0))'
             
         try:
             sh_order.Cells(r, 10).NumberFormat = "0.00%"
