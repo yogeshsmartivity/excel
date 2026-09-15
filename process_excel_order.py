@@ -91,7 +91,8 @@ def check_for_updates(workbook_path=None, force_download=False):
             ]
             for fn in files_to_dl:
                 try:
-                    dl_url = GITHUB_RAW_BASE + fn
+                    import urllib.parse
+                    dl_url = GITHUB_RAW_BASE + urllib.parse.quote(fn)
                     dl_path = os.path.join(wb_dir, fn)
                     req_dl = urllib.request.Request(dl_url, headers={'User-Agent': 'Mozilla/5.0'})
                     with urllib.request.urlopen(req_dl, timeout=10, context=ssl_context) as resp_dl, open(dl_path, "wb") as out_f:
