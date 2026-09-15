@@ -68,8 +68,10 @@ def check_for_updates(workbook_path=None, force_download=False):
         
         online_ver = current_ver
         try:
-            online_ver_url = GITHUB_RAW_BASE + "version.txt"
-            req = urllib.request.Request(online_ver_url, headers={'User-Agent': 'Mozilla/5.0'})
+            import time
+            cache_bust = f"?t={int(time.time())}"
+            online_ver_url = GITHUB_RAW_BASE + "version.txt" + cache_bust
+            req = urllib.request.Request(online_ver_url, headers={'User-Agent': 'Mozilla/5.0', 'Cache-Control': 'no-cache'})
             with urllib.request.urlopen(req, timeout=5, context=ssl_context) as resp:
                 online_text = resp.read().decode('utf-8')
                 for l in online_text.split('\n'):
@@ -90,12 +92,14 @@ def check_for_updates(workbook_path=None, force_download=False):
                 "Templete.xls",
                 "version.txt"
             ]
+            import time
+            dl_cache_bust = f"?t={int(time.time())}"
             for fn in files_to_dl:
                 try:
                     import urllib.parse
-                    dl_url = GITHUB_RAW_BASE + urllib.parse.quote(fn)
+                    dl_url = GITHUB_RAW_BASE + urllib.parse.quote(fn) + dl_cache_bust
                     dl_path = os.path.join(wb_dir, fn)
-                    req_dl = urllib.request.Request(dl_url, headers={'User-Agent': 'Mozilla/5.0'})
+                    req_dl = urllib.request.Request(dl_url, headers={'User-Agent': 'Mozilla/5.0', 'Cache-Control': 'no-cache'})
                     with urllib.request.urlopen(req_dl, timeout=10, context=ssl_context) as resp_dl, open(dl_path, "wb") as out_f:
                         out_f.write(resp_dl.read())
                     print(f"  [DOWNLOADED] {fn}")
