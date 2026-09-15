@@ -14,7 +14,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.3.9"
+CURRENT_VERSION = "1.4.0"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1740,7 +1740,7 @@ def run_fill(workbook_path, active_sheet_arg=None):
                 ""  # InputField
             ])
             
-    # 4. Write to Template Sheet
+    # 4. Write to Template Sheet inside Workbook
     print(f"Writing {len(template_rows)} rows to template sheet...")
     for idx, row_val in enumerate(template_rows):
         r_temp = 2 + idx
@@ -1748,6 +1748,50 @@ def run_fill(workbook_path, active_sheet_arg=None):
             sh_temp.Cells(r_temp, col_idx).Value = val
 
     print("Template populated directly on active sheet with headers intact!")
+    
+    # 5. Export clean standalone upload Excel file directly to Desktop for Software Upload
+    try:
+        wsh = win32com.client.Dispatch('WScript.Shell')
+        desktop_dir = wsh.SpecialFolders('Desktop')
+    except Exception:
+        desktop_dir = None
+        
+    if not desktop_dir or not os.path.exists(desktop_dir):
+        for candidate in [os.path.expanduser('~/OneDrive/Desktop'), os.path.expanduser('~/Desktop')]:
+            if os.path.exists(candidate):
+                desktop_dir = candidate
+                break
+                
+    if desktop_dir and os.path.exists(desktop_dir):
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment, Border
+            
+            clean_pname = re.sub(r'[\\/*?:\"<>| ]+', '_', str(party_name or 'Order')).strip('_')
+            dest_file_main = os.path.join(desktop_dir, "SaleInvoiceItemUpload.xlsx")
+            dest_file_party = os.path.join(desktop_dir, f"SaleInvoiceItemUpload_{clean_pname}.xlsx")
+            
+            for dest_path in [dest_file_main, dest_file_party]:
+                wb_out = openpyxl.Workbook()
+                sh_out = wb_out.active
+                sh_out.title = "SaleInvoiceItemUpload"
+                
+                # Write bold headers
+                for c_idx, h_name in enumerate(headers, 1):
+                    c_cell = sh_out.cell(1, c_idx, h_name)
+                    c_cell.font = Font(name="Calibri", size=11, bold=True)
+                    
+                # Write data rows
+                for r_idx, r_data in enumerate(template_rows, 2):
+                    for c_idx, val in enumerate(r_data, 1):
+                        sh_out.cell(r_idx, c_idx, val)
+                        
+                wb_out.save(dest_path)
+                print(f"  [SAVED TO DESKTOP] {dest_path}")
+                
+            print(f"Software Upload file created on Desktop: SaleInvoiceItemUpload.xlsx")
+        except Exception as desk_err:
+            print(f"Warning saving to Desktop: {desk_err}")
 
 def push_team_masters(workbook_path):
     wb_dir = os.path.dirname(os.path.abspath(workbook_path)) if workbook_path else os.path.dirname(os.path.abspath(__file__))
