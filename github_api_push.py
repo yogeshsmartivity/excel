@@ -5,6 +5,7 @@ import base64
 import ssl
 import urllib.request
 import urllib.error
+import urllib.parse
 
 try:
     import certifi
@@ -45,7 +46,7 @@ def push_file_to_github(filename):
         
     base64_content = base64.b64encode(content_bytes).decode('utf-8')
     
-    url = f"https://api.github.com/repos/{OWNER}/{REPO}/contents/{filename}"
+    url = f"https://api.github.com/repos/{OWNER}/{REPO}/contents/{urllib.parse.quote(filename)}"
     headers = {
         "Authorization": f"token {TOKEN}",
         "Accept": "application/vnd.github.v3+json",
