@@ -33,7 +33,8 @@ def check_for_updates(workbook_path=None, force_download=False):
     2. github_api_push.py
     3. master_price_list.xlsx
     4. master_discount_list.xlsx
-    5. version.txt
+    5. Templete.xls
+    6. version.txt
     """
     try:
         import urllib.request
@@ -59,7 +60,7 @@ def check_for_updates(workbook_path=None, force_download=False):
                 
         # Check for missing critical files locally
         missing_files = []
-        for check_fn in ["github_api_push.py", "master_price_list.xlsx", "master_discount_list.xlsx"]:
+        for check_fn in ["github_api_push.py", "master_price_list.xlsx", "master_discount_list.xlsx", "Templete.xls"]:
             if not os.path.exists(os.path.join(wb_dir, check_fn)):
                 missing_files.append(check_fn)
                 
@@ -1877,7 +1878,7 @@ def push_team_masters(workbook_path):
         import re
         with open(py_script, "r", encoding="utf-8") as pf:
             py_code = pf.read()
-        py_code_new = re.sub(r'CURRENT_VERSION\s*=\s*"[^"]+"', f'CURRENT_VERSION = "1.4.6"', py_code)
+        py_code_new = re.sub(r'CURRENT_VERSION\s*=\s*"[^"]+"', f'CURRENT_VERSION = "{next_ver}"', py_code)
         with open(py_script, "w", encoding="utf-8") as pf:
             pf.write(py_code_new)
     except Exception as py_ver_err:
