@@ -14,7 +14,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.4.6"
+CURRENT_VERSION = "1.4.7"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -1878,7 +1878,7 @@ def push_team_masters(workbook_path):
         import re
         with open(py_script, "r", encoding="utf-8") as pf:
             py_code = pf.read()
-        py_code_new = re.sub(r'CURRENT_VERSION\s*=\s*"[^"]+"', f'CURRENT_VERSION = "{next_ver}"', py_code)
+        py_code_new = re.sub(r'CURRENT_VERSION\s*=\s*"[^"]+"', f'CURRENT_VERSION = "1.4.7"', py_code)
         with open(py_script, "w", encoding="utf-8") as pf:
             pf.write(py_code_new)
     except Exception as py_ver_err:
