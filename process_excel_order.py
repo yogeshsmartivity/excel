@@ -1872,10 +1872,11 @@ def push_team_masters(workbook_path):
     with open(ver_path, "w", encoding="utf-8") as vf:
         vf.write(f"VERSION={next_ver}\n")
         
-    # Also update CURRENT_VERSION inside process_excel_order.py
     py_script = os.path.join(wb_dir, "process_excel_order.py")
     try:
         import re
+        with open(py_script, "r", encoding="utf-8") as pf:
+            py_code = pf.read()
         py_code_new = re.sub(r'CURRENT_VERSION\s*=\s*"[^"]+"', f'CURRENT_VERSION = "{next_ver}"', py_code)
         with open(py_script, "w", encoding="utf-8") as pf:
             pf.write(py_code_new)
