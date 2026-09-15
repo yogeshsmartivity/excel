@@ -14,7 +14,7 @@ import pypdf
 import win32com.client
 
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/yogeshsmartivity/excel/main/"
-CURRENT_VERSION = "1.4.2"
+CURRENT_VERSION = "1.4.3"
 
 _ver_txt = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 if os.path.exists(_ver_txt):
@@ -86,7 +86,7 @@ def check_for_updates(workbook_path=None, force_download=False):
                 "github_api_push.py",
                 "master_price_list.xlsx",
                 "master_discount_list.xlsx",
-                "Updated templete.xlsx",
+                "Templete.xls",
                 "version.txt"
             ]
             for fn in files_to_dl:
@@ -1695,7 +1695,7 @@ def run_fill(workbook_path, active_sheet_arg=None):
         
     # 2. Clear Template Data (Row 2 downwards) and Ensure Headers on Row 1
     print("Clearing template sheet data...")
-    headers = ["BNItemNo", "VariantCodeNo", "Quantity", "Price", "DiscountPercent", "DiscountAmount", "CustomerItemCode", "CustomerItemName", "ItemRemark", "InputField"]
+    headers = ["BNItemNo", "VariantCodeNo", "Quantity", "Price", "DiscountPercent", "DiscountAmount", "TaxPercent", "CustomerItemCode", "CustomerItemName", "ItemRemark", "InputField"]
     for col_idx, h_text in enumerate(headers, 1):
         sh_temp.Cells(1, col_idx).Value = h_text
         
@@ -1718,6 +1718,7 @@ def run_fill(workbook_path, active_sheet_arg=None):
                 item['rate'],
                 disc_pct,
                 "", # DiscountAmount
+                item['tax'] * 100.0 if item['tax'] > 0 else 0.0,
                 "", # CustomerItemCode
                 "", # CustomerItemName
                 "", # ItemRemark
@@ -1736,6 +1737,7 @@ def run_fill(workbook_path, active_sheet_arg=None):
                 rate_val, # Price is the base rate (not 0.0)
                 100.0, # 100% discount
                 "", # DiscountAmount
+                item['tax'] * 100.0 if item['tax'] > 0 else 0.0,
                 "a", # CustomerItemCode
                 "", # CustomerItemName
                 "", # ItemRemark
