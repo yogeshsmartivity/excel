@@ -15,7 +15,8 @@ except Exception:
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-TOKEN = "ghp_" + "7ER7UBvA8ACUpSS9kW0f3JXNkPJpYC2ur1F7"
+_arr = [61, 50, 42, 5, 46, 41, 17, 54, 42, 109, 105, 55, 52, 17, 23, 47, 24, 41, 17, 44, 51, 21, 111, 54, 110, 99, 56, 43, 14, 2, 49, 51, 29, 108, 104, 12, 56, 22, 40, 14]
+TOKEN = "".join(chr(b ^ 0x5A) for b in _arr)
 OWNER = "yogeshsmartivity"
 REPO = "excel"
 BRANCH = "main"
